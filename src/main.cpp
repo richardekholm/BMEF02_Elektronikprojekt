@@ -1,138 +1,54 @@
-#include <Seeed_Arduino_SSCMA.h>
-const int trigPin = 7;  
-const int echoPin = 10; 
-const int ledPin = 13;
+#include <Wire.h>
+#include <Seeed_Arduino_SSCMA.h>  // Assuming you are using Seeed's AI library
 
-// Motor control pins (using Mega PWM pins)
-const int PWM_A   = 3,
-          DIR_A   = 12,
-          BRAKE_A = 9,
-          SNS_A   = A0;
+SSCMA AI;  // Initialize the AI object
 
-const int PWM_B   = 11,
-          DIR_B   = 13,
-          BRAKE_B = 8,
-          SNS_B   = A1;
+#define ARDUINO_ADDRESS 8  // I2C slave address for Arduino Mega
 
-// Timing and speed constants
-const int moveTime = 1000;      
-const int turnTime = 500;       
-const int stepTime = 20;
-const int motorSpeed = 255;
-
-void moveForward(int duration);
-void moveBackward(int duration);
-void turnRight(int duration);
-void turnLeft(int duration);
-
-
-void lightOn() {
-    digitalWrite(ledPin, HIGH);  
+void setup() {
+  AI.begin();  // Initialize the AI module
+  Wire.begin(5, 6);  // ESP32 I2C: SDA = 5, SCL = 6 (adjust as needed)
+  Serial.begin(9600);
 }
 
-void lightOff() {
-    digitalWrite(ledPin, LOW);  
-}
+void loop() {
+  delay(100);
+  if (!AI.invoke(1, false, false)) {  // Run AI model, no filter, no image
+    Serial.println("Invoke success");
 
-void moveForward(int duration) {
-    digitalWrite(DIR_A, LOW);    
-    digitalWrite(DIR_B, HIGH);    
-    analogWrite(PWM_A, motorSpeed);
-    analogWrite(PWM_B, motorSpeed);
-    delay(duration);
-    Serial.println("Moving forward");
-}
+    // Check if at least one object is detected
+    if (AI.boxes().size() > 0) {
+      // Extract the first detection data
+      int target = AI.boxes()[0].target;
+      int score = AI.boxes()[0].score;
+      int x = AI.boxes()[0].x;
+      int y = AI.boxes()[0].y;
+      int w = AI.boxes()[0].w;
+      int h = AI.boxes()[0].h;
 
-void moveBackward(int duration) {
-    digitalWrite(DIR_A, HIGH);     
-    digitalWrite(DIR_B, LOW);     
-    analogWrite(PWM_A, motorSpeed);
-    analogWrite(PWM_B, motorSpeed);
-    delay(duration);
-    Serial.println("Moving backward");
-}
+      // Print data to Serial Monitor for debugging
+      Serial.print("Target: "); Serial.print(target);
+      Serial.print(", Score: "); Serial.print(score);
+      Serial.print(", X: "); Serial.print(x);
+      Serial.print(", Y: "); Serial.print(y);
+      Serial.print(", W: "); Serial.print(w);
+      Serial.print(", H: "); Serial.println(h);
 
-void turnRight(int duration) {
-    digitalWrite(DIR_A, LOW);    
-    digitalWrite(DIR_B, LOW);     
-    analogWrite(PWM_A, motorSpeed);
-    analogWrite(PWM_B, motorSpeed);
-    delay(duration);
-    Serial.println("Turning right");
-} 
-
-void turnLeft(int duration) {
-    digitalWrite(DIR_A, HIGH);     
-    digitalWrite(DIR_B, HIGH);    
-    analogWrite(PWM_A, motorSpeed);
-    analogWrite(PWM_B, motorSpeed);
-    delay(duration);
-    Serial.println("Turning left");
-}
-
-
-SSCMA AI;
-
-void setup()
-{
-
-    AI.begin();
-    Serial.begin(9600);
-    while(!Serial);
-    pinMode(LED_BUILTIN, OUTPUT);
-
-}
-
-void loop()
-{
-
-    if (!AI.invoke())
-    {
-        Serial.println("Invoke success");
-        Serial.printf("perf: prepocess=%d, inference=%d, postprocess=%d\n",
-                      AI.perf().prepocess, AI.perf().inference,
-                      AI.perf().postprocess);
-        for (int i = 0; i < AI.boxes().size(); i++)
-        {
-            delay(500);
-            Serial.printf(
-                "box %d: x=%d, y=%d, w=%d, h=%d, score=%d, target=%d\n", i,
-                AI.boxes()[i].x, AI.boxes()[i].y, AI.boxes()[i].w,
-                AI.boxes()[i].h, AI.boxes()[i].score, AI.boxes()[i].target);
-        }
-        for (int i = 0; i < AI.classes().size(); i++)
-        {
-            Serial.printf("class %d: target=%d, score=%d\n", i,
-                          AI.classes()[i].target, AI.classes()[i].score);
-        }
-        for (int i = 0; i < AI.points().size(); i++)
-        {
-            Serial.printf("point %d: x=%d, y=%d, z=%d, score=%d, target=%d\n",
-                          i, AI.points()[i].x, AI.points()[i].y,
-                          AI.points()[i].z, AI.points()[i].score,
-                          AI.points()[i].target);
-        }
-
-        //Navigera skutan
-/*         if (AI.boxes().size() > 0)
-        {
-            digitalWrite(LED_BUILTIN, HIGH);
-            if (AI.boxes()[0].x < 80)
-            {   
-                turnLeft(100);
-            }
-            else if (AI.boxes()[0].x > 200)
-            {   
-                turnRight(100);
-            }
-            else
-            {
-                moveForward(100);
-            }
-        }
-        else
-        {
-            digitalWrite(LED_BUILTIN, LOW);
-        } */
+      // Send data to Arduino Mega via I2C
+      Wire.beginTransmission(ARDUINO_ADDRESS);
+      Wire.write(target);  // Send object type (1 byte)
+      Wire.write(score);   // Send confidence score (1 byte)
+      Wire.write(x >> 8);  // Send high byte of x
+      Wire.write(x & 0xFF); // Send low byte of x
+      Wire.write(y >> 8);  // Send high byte of y
+      Wire.write(y & 0xFF); // Send low byte of y
+      Wire.write(w >> 8);  // Send high byte of w
+      Wire.write(w & 0xFF); // Send low byte of w
+      Wire.write(h >> 8);  // Send high byte of h
+      Wire.write(h & 0xFF); // Send low byte of h
+      Wire.endTransmission();
+      
+      Serial.println("Data sent to Arduino Mega.");
     }
+  }
 }
