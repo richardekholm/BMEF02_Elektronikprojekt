@@ -27,11 +27,22 @@ void receiveData(int byteCount) {
   int w = (Wire.read() << 8) | Wire.read();
   int h = (Wire.read() << 8) | Wire.read();
   
-  Serial.println("--------------------");
-  Serial.print("Target: "); Serial.println(target);
-  Serial.print("Score: "); Serial.println(score);
-  Serial.print("X-position: "); Serial.println(x);
-  Serial.print("Y-position: "); Serial.println(y);
-  Serial.print("Width: "); Serial.println(w);
-  Serial.print("Height: "); Serial.println(h);
+  //Serial.println("--------------------");
+  //Serial.print("Target: "); Serial.println(target);
+  //Serial.print("Score: "); Serial.println(score);
+  //Serial.print("X-position: "); Serial.println(x);
+  //Serial.print("Y-position: "); Serial.println(y);
+  //Serial.print("Width: "); Serial.println(w);
+  //Serial.print("Height: "); Serial.println(h);
+
+  int midX = x + (w / 2);
+  if (midX < 100){
+    Serial.println("go right");
+  }
+  if (midX > 130){
+    Serial.println("go left");
+  }
+  if (midX > 100 && midX < 130){
+    Serial.println("go straight");
+  }
 }
