@@ -20,7 +20,7 @@ const int ledPin = 13;
 const int moveTime = 1000;      
 const int turnTime = 500;       
 const int stepTime = 20;
-const int motorSpeed = 200;
+const int motorSpeed = 255;
 
 // Declare robot state and timing variables
 enum RobotState {IDLE, FORWARD, LEFT, RIGHT, STOP, BACKWARD, SEARCH};
@@ -92,11 +92,12 @@ void stop() {
 }
 
 void loop() {
- // if (millis() - lastMoveTime > moveDuration) {
- //   stop();
- //  robotState = IDLE;
- //   return;
-//  }
+ if (millis() - lastMoveTime > moveDuration) {
+  //  stop();
+  // robotState = IDLE;
+  robotState = SEARCH;
+   return;
+ }
 
 
   switch (robotState) {
@@ -115,8 +116,11 @@ void loop() {
     case STOP:
       stop();
       break;
+    case SEARCH:
+      Serial.println("Searching");
+      break;
     case IDLE:
-    default:
+      default:
       break;
 
 }
@@ -136,18 +140,17 @@ void receiveData(int byteCount) {
   int midX = x + (w / 2);
 
   if (midX <= 60) {
-    Serial.println("go left");
+    // Serial.println("go left");
     robotState = LEFT;
   } else if (midX >= 170) {
-    Serial.println("go right");
+    // Serial.println("go right");
     robotState = RIGHT;
-  } else if(midX < 60 && midX > 170) {
-    Serial.println("go straight");
+  } else if(midX > 60 && midX < 170) {
+    // Serial.println("go straight");
     robotState = FORWARD;
-
-  
-
- // lastMoveTime = millis();  // Update last move time
-}
-
+  } else {
+    // Serial.println("searching");
+    robotState = SEARCH;
+  }
+  lastMoveTime = millis();  // Update last move time
 }
