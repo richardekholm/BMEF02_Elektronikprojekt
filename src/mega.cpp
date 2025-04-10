@@ -3,7 +3,36 @@
 
 #define ARDUINO_ADDRESS 8  // Must match ESP32 sender
 
-// Forward declaration of the receiveData function
+// Motor control pins (using Mega PWM pins)
+const int PWM_A   = 3,
+          DIR_A   = 12,
+          BRAKE_A = 9,
+          SNS_A   = A0;
+
+const int PWM_B   = 11,
+          DIR_B   = 13,
+          BRAKE_B = 8,
+          SNS_B   = A1;
+
+const int ledPin = 13;
+
+// Timing and speed constants
+const int moveTime = 1000;      
+const int turnTime = 500;       
+const int stepTime = 20;
+const int motorSpeed = 200;
+
+// Declare robot state and timing variables
+enum RobotState {IDLE, FORWARD, LEFT, RIGHT, STOP, BACKWARD, SEARCH};
+RobotState robotState = IDLE;
+unsigned long lastMoveTime = 0;
+const unsigned long moveDuration = 300; // time per action in ms
+
+void moveForward(int duration);
+void moveBackward(int duration);
+void turnRight(int duration);
+void turnLeft(int duration);
+void stop();
 void receiveData(int byteCount);
 
 void setup() {
@@ -12,37 +41,113 @@ void setup() {
   Serial.begin(9600);
 }
 
+void lightOn() {
+    digitalWrite(ledPin, HIGH);  
+}
+
+void lightOff() {
+    digitalWrite(ledPin, LOW);  
+}
+
+void moveForward(int duration) {
+    digitalWrite(DIR_A, LOW);    
+    digitalWrite(DIR_B, HIGH);    
+    analogWrite(PWM_A, motorSpeed);
+    analogWrite(PWM_B, motorSpeed);
+    delay(duration);
+    Serial.println("Moving forward");
+}
+
+void moveBackward(int duration) {
+    digitalWrite(DIR_A, HIGH);     
+    digitalWrite(DIR_B, LOW);     
+    analogWrite(PWM_A, motorSpeed);
+    analogWrite(PWM_B, motorSpeed);
+    delay(duration);
+    Serial.println("Moving backward");
+}
+
+void turnRight(int duration) {
+    digitalWrite(DIR_A, LOW);    
+    digitalWrite(DIR_B, LOW);     
+    analogWrite(PWM_A, motorSpeed);
+    analogWrite(PWM_B, motorSpeed);
+    delay(duration);
+    Serial.println("Turning right");
+} 
+
+void turnLeft(int duration) {
+    digitalWrite(DIR_A, HIGH);     
+    digitalWrite(DIR_B, HIGH);    
+    analogWrite(PWM_A, motorSpeed);
+    analogWrite(PWM_B, motorSpeed);
+    delay(duration);
+    Serial.println("Turning left");
+}
+
+void stop() {
+    digitalWrite(PWM_A, LOW);  // Stop motor A
+    digitalWrite(PWM_B, LOW);  // Stop motor B
+    Serial.println("Stopping motors");
+}
+
 void loop() {
-  // Nothing needed here, data is handled in receiveData()
+ // if (millis() - lastMoveTime > moveDuration) {
+ //   stop();
+ //  robotState = IDLE;
+ //   return;
+//  }
+
+
+  switch (robotState) {
+    case FORWARD:
+      moveForward(100); 
+      break;
+    case BACKWARD:
+      moveBackward(100); 
+      break;
+    case LEFT:
+      turnLeft(100); 
+      break;
+    case RIGHT:
+      turnRight(100); 
+      break;
+    case STOP:
+      stop();
+      break;
+    case IDLE:
+    default:
+      break;
+
+}
 }
 
 void receiveData(int byteCount) {
-  if (byteCount < 10) return;  // Ensure we have all 10 bytes
-  
+  if (byteCount < 10) return;
+
   int target = Wire.read();
   int score  = Wire.read();
-  
+
   int x = (Wire.read() << 8) | Wire.read();
   int y = (Wire.read() << 8) | Wire.read();
   int w = (Wire.read() << 8) | Wire.read();
   int h = (Wire.read() << 8) | Wire.read();
-  
-  //Serial.println("--------------------");
-  //Serial.print("Target: "); Serial.println(target);
-  //Serial.print("Score: "); Serial.println(score);
-  //Serial.print("X-position: "); Serial.println(x);
-  //Serial.print("Y-position: "); Serial.println(y);
-  //Serial.print("Width: "); Serial.println(w);
-  //Serial.print("Height: "); Serial.println(h);
 
   int midX = x + (w / 2);
-  if (midX < 100){
-    Serial.println("go right");
-  }
-  if (midX > 130){
+
+  if (midX <= 60) {
     Serial.println("go left");
-  }
-  if (midX > 100 && midX < 130){
+    robotState = LEFT;
+  } else if (midX >= 170) {
+    Serial.println("go right");
+    robotState = RIGHT;
+  } else if(midX < 60 && midX > 170) {
     Serial.println("go straight");
-  }
+    robotState = FORWARD;
+
+  
+
+ // lastMoveTime = millis();  // Update last move time
+}
+
 }

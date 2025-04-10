@@ -12,7 +12,6 @@ void setup() {
 }
 
 void loop() {
-  delay(100);
   if (!AI.invoke(1, false, false)) {  // Run AI model, no filter, no image
     //Serial.print("invoke success");
 
