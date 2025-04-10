@@ -23,7 +23,7 @@ const int stepTime = 20;
 const int motorSpeed = 255;
 
 // Declare robot state and timing variables
-enum RobotState {IDLE, FORWARD, LEFT, RIGHT, STOP, BACKWARD, SEARCH};
+enum RobotState {IDLE, FORWARD, LEFT, RIGHT, STOP, BACKWARD, SEARCH, TEST};
 RobotState robotState = IDLE;
 unsigned long lastMoveTime = 0;
 const unsigned long moveDuration = 300; // time per action in ms
@@ -34,6 +34,7 @@ void turnRight(int duration);
 void turnLeft(int duration);
 void stop();
 void receiveData(int byteCount);
+void test(int duration);
 
 void setup() {
   Wire.begin(ARDUINO_ADDRESS);  // Join I2C bus as slave
@@ -50,6 +51,8 @@ void lightOff() {
 }
 
 void moveForward(int duration) {
+    digitalWrite(BRAKE_A, LOW);    
+    digitalWrite(BRAKE_B, LOW);
     digitalWrite(DIR_A, LOW);    
     digitalWrite(DIR_B, HIGH);    
     analogWrite(PWM_A, motorSpeed);
@@ -59,6 +62,8 @@ void moveForward(int duration) {
 }
 
 void moveBackward(int duration) {
+    digitalWrite(BRAKE_A, LOW);    
+    digitalWrite(BRAKE_B, LOW);
     digitalWrite(DIR_A, HIGH);     
     digitalWrite(DIR_B, LOW);     
     analogWrite(PWM_A, motorSpeed);
@@ -68,8 +73,10 @@ void moveBackward(int duration) {
 }
 
 void turnRight(int duration) {
+    digitalWrite(BRAKE_A, LOW);    
+    digitalWrite(BRAKE_B, HIGH);
     digitalWrite(DIR_A, LOW);    
-    digitalWrite(DIR_B, LOW);     
+    // digitalWrite(DIR_B, LOW);     
     analogWrite(PWM_A, motorSpeed);
     analogWrite(PWM_B, motorSpeed);
     delay(duration);
@@ -77,8 +84,10 @@ void turnRight(int duration) {
 } 
 
 void turnLeft(int duration) {
-    digitalWrite(DIR_A, HIGH);     
-    digitalWrite(DIR_B, HIGH);    
+    digitalWrite(BRAKE_A, HIGH);    
+    digitalWrite(BRAKE_B, LOW);
+    // digitalWrite(DIR_A, HIGH);     
+    digitalWrite(DIR_B, LOW);    
     analogWrite(PWM_A, motorSpeed);
     analogWrite(PWM_B, motorSpeed);
     delay(duration);
@@ -86,21 +95,38 @@ void turnLeft(int duration) {
 }
 
 void stop() {
-    digitalWrite(PWM_A, LOW);  // Stop motor A
-    digitalWrite(PWM_B, LOW);  // Stop motor B
+    analogWrite(PWM_A, 0);  // Stop motor A
+    analogWrite(PWM_B, 0);  // Stop motor B
+    digitalWrite(BRAKE_A, HIGH);    
+    digitalWrite(BRAKE_B, HIGH);
     Serial.println("Stopping motors");
+}
+
+void test(int duration){
+  digitalWrite(BRAKE_A, LOW);    
+    digitalWrite(BRAKE_B, LOW);
+    // digitalWrite(DIR_A, LOW);     
+    digitalWrite(DIR_B, HIGH);    
+    // analogWrite(PWM_A, motorSpeed);
+    analogWrite(PWM_B, motorSpeed);
+    delay(duration);
+    Serial.println("TEST");
 }
 
 void loop() {
  if (millis() - lastMoveTime > moveDuration) {
-  //  stop();
-  // robotState = IDLE;
-  robotState = SEARCH;
-   return;
- }
+    stop();
+    robotState = IDLE;
+  // robotState = SEARCH;
+  return;
+}
 
 
+robotState = TEST;
   switch (robotState) {
+    case TEST:
+      test(1000);
+      break;
     case FORWARD:
       moveForward(100); 
       break;
