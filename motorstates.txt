@@ -1,0 +1,15 @@
+höger hjul bakåt (break low):
+    digitalWrite(DIR_A, HIGH);     
+    analogWrite(PWM_A, motorSpeed);
+
+höger hjul framåt (break low):
+    digitalWrite(DIR_A, LOW);     
+    analogWrite(PWM_A, motorSpeed);
+
+vänster hjul står still (kan vara bug, break low)
+    digitalWrite(DIR_B, HIGH);    
+    analogWrite(PWM_B, motorSpeed);
+
+vänster hjul bakåt (break low):
+    digitalWrite(DIR_B, LOW);    
+    analogWrite(PWM_B, motorSpeed);
