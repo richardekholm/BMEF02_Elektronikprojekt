@@ -16,17 +16,25 @@ const int PWM_B   = 11,
 
 const int ledPin = 13;
 
+const int trigPin = 6,  
+          echoPin = 7; 
+
+
+
+
 // Timing and speed constants
 const int moveTime = 1000;      
 const int turnTime = 500;       
 const int stepTime = 20;
-const int motorSpeed = 255;
+const int motorSpeed = 130;
+float duration, distance;
 
 // Declare robot state and timing variables
 enum RobotState {IDLE, FORWARD, LEFT, RIGHT, STOP, BACKWARD, SEARCH, TEST};
 RobotState robotState = IDLE;
 unsigned long lastMoveTime = 0;
-const unsigned long moveDuration = 300; // time per action in ms
+const unsigned long moveDuration = 500; // time per action in ms
+
 
 void moveForward(int duration);
 void moveBackward(int duration);
@@ -35,10 +43,14 @@ void turnLeft(int duration);
 void stop();
 void receiveData(int byteCount);
 void test(int duration);
+void spinUpMotors();
 
 void setup() {
   Wire.begin(ARDUINO_ADDRESS);  // Join I2C bus as slave
   Wire.onReceive(receiveData);   // Set function to handle received data
+  pinMode(trigPin, OUTPUT);  
+	pinMode(echoPin, INPUT);  
+
   Serial.begin(9600);
 }
 
@@ -50,83 +62,98 @@ void lightOff() {
     digitalWrite(ledPin, LOW);  
 }
 
-void moveForward(int duration) {
-    digitalWrite(BRAKE_A, LOW);    
-    digitalWrite(BRAKE_B, LOW);
-    digitalWrite(DIR_A, LOW);    
-    digitalWrite(DIR_B, HIGH);    
-    analogWrite(PWM_A, motorSpeed);
-    analogWrite(PWM_B, motorSpeed);
-    delay(duration);
-    Serial.println("Moving forward");
-}
-
-void moveBackward(int duration) {
-    digitalWrite(BRAKE_A, LOW);    
-    digitalWrite(BRAKE_B, LOW);
-    digitalWrite(DIR_A, HIGH);     
-    digitalWrite(DIR_B, LOW);     
-    analogWrite(PWM_A, motorSpeed);
-    analogWrite(PWM_B, motorSpeed);
-    delay(duration);
-    Serial.println("Moving backward");
-}
-
 void turnRight(int duration) {
+  Serial.println("Turning right");
     digitalWrite(BRAKE_A, LOW);    
-    digitalWrite(BRAKE_B, HIGH);
-    digitalWrite(DIR_A, LOW);    
-    // digitalWrite(DIR_B, LOW);     
-    analogWrite(PWM_A, motorSpeed);
-    analogWrite(PWM_B, motorSpeed);
-    delay(duration);
-    Serial.println("Turning right");
-} 
-
-void turnLeft(int duration) {
-    digitalWrite(BRAKE_A, HIGH);    
     digitalWrite(BRAKE_B, LOW);
-    // digitalWrite(DIR_A, HIGH);     
+    digitalWrite(DIR_A, HIGH);    
     digitalWrite(DIR_B, LOW);    
     analogWrite(PWM_A, motorSpeed);
     analogWrite(PWM_B, motorSpeed);
+    // spinUpMotors();
     delay(duration);
-    Serial.println("Turning left");
+}
+
+void moveBackward(int duration) {
+  Serial.println("Moving backward");
+    digitalWrite(BRAKE_A, LOW);
+    digitalWrite(BRAKE_B, LOW);
+    digitalWrite(DIR_A, HIGH);     
+    digitalWrite(DIR_B, HIGH);     
+    analogWrite(PWM_A, motorSpeed);
+    analogWrite(PWM_B, motorSpeed);
+    // spinUpMotors();
+    delay(duration);
+}
+
+void moveForward(int duration) {
+  Serial.println("Moving forward");
+    digitalWrite(BRAKE_A, LOW);    
+    digitalWrite(BRAKE_B, LOW);
+    digitalWrite(DIR_A, LOW);    
+    digitalWrite(DIR_B, LOW);     
+    analogWrite(PWM_A, motorSpeed);
+    analogWrite(PWM_B, motorSpeed);
+    // spinUpMotors();
+    delay(duration);     
+} 
+
+void turnLeft(int duration) {
+  Serial.println("Turning left");
+    digitalWrite(BRAKE_A, LOW);    
+    digitalWrite(BRAKE_B, LOW);
+    digitalWrite(DIR_A, LOW);     
+    digitalWrite(DIR_B, HIGH);    
+    analogWrite(PWM_A, motorSpeed);
+    analogWrite(PWM_B, motorSpeed);
+    // spinUpMotors();
+    delay(duration);
 }
 
 void stop() {
+  digitalWrite(BRAKE_A, HIGH);    
+  digitalWrite(BRAKE_B, HIGH);
     analogWrite(PWM_A, 0);  // Stop motor A
     analogWrite(PWM_B, 0);  // Stop motor B
-    digitalWrite(BRAKE_A, HIGH);    
-    digitalWrite(BRAKE_B, HIGH);
     Serial.println("Stopping motors");
 }
 
-void test(int duration){
-  digitalWrite(BRAKE_A, LOW);    
-    digitalWrite(BRAKE_B, LOW);
-    // digitalWrite(DIR_A, LOW);     
-    digitalWrite(DIR_B, HIGH);    
-    // analogWrite(PWM_A, motorSpeed);
-    analogWrite(PWM_B, motorSpeed);
-    delay(duration);
-    Serial.println("TEST");
+void spinUpMotors() {
+  analogWrite(PWM_A, 255);
+  analogWrite(PWM_B, 255);
+  delay(50);
+  analogWrite(PWM_A, 200);
+  analogWrite(PWM_B, 200);
+  delay(50);
+  analogWrite(PWM_A, 150);
+  analogWrite(PWM_B, 150);
+  delay(50);
+  analogWrite(PWM_A, 100);
+  analogWrite(PWM_B, 100);
+  delay(50);
+  analogWrite(PWM_A, 50);
+  analogWrite(PWM_B, 50);
 }
 
 void loop() {
- if (millis() - lastMoveTime > moveDuration) {
-    stop();
-    robotState = IDLE;
-  // robotState = SEARCH;
-  return;
-}
+//  if ((millis() - lastMoveTime) > moveDuration) {
+    // stop();
+    // Serial.println("Searching...");
+    // robotState = RIGHT;
+  // return;
+// }
+digitalWrite(trigPin, LOW);  
+delayMicroseconds(2);  
+digitalWrite(trigPin, HIGH);  
+delayMicroseconds(10);  
+digitalWrite(trigPin, LOW);  
+duration = pulseIn(echoPin, HIGH);
+distance = (duration*.0343)/2;  
+Serial.print("Distance: ");  
+Serial.println(distance);
 
-
-robotState = TEST;
+robotState = IDLE;  // Reset state to IDLE after each loop iteration
   switch (robotState) {
-    case TEST:
-      test(1000);
-      break;
     case FORWARD:
       moveForward(100); 
       break;
@@ -141,9 +168,6 @@ robotState = TEST;
       break;
     case STOP:
       stop();
-      break;
-    case SEARCH:
-      Serial.println("Searching");
       break;
     case IDLE:
       default:
@@ -166,17 +190,11 @@ void receiveData(int byteCount) {
   int midX = x + (w / 2);
 
   if (midX <= 60) {
-    // Serial.println("go left");
     robotState = LEFT;
   } else if (midX >= 170) {
-    // Serial.println("go right");
     robotState = RIGHT;
   } else if(midX > 60 && midX < 170) {
-    // Serial.println("go straight");
     robotState = FORWARD;
-  } else {
-    // Serial.println("searching");
-    robotState = SEARCH;
   }
   lastMoveTime = millis();  // Update last move time
 }
