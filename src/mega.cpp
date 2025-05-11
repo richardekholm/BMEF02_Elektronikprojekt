@@ -31,6 +31,8 @@ const int servoPinA = A2,
 
 Servo servoA;
 Servo servoB;
+// LSM303D Lsm303d;
+
 
 // Timing and speed constants
 const int moveTime = 100;      
@@ -39,8 +41,8 @@ const int stepTime = 100;
 const int stopTime = 500; 
 const int motorSpeed = 90;
 
-int accel[3];  // we'll store the raw acceleration values here
-int mag[3];  // raw magnetometer values stored here
+int16_t accel[3];  // we'll store the raw acceleration values here
+int16_t mag[3];  // raw magnetometer values stored here
 float realAccel[3];  // calculated acceleration values here
 float heading, titleHeading;
 
@@ -68,6 +70,7 @@ void setBucketHeight(String height);
 boolean ballInBucket();
 float getInstantDistance(int trigPin, int echoPin);
 float getAvgDistance(int trigPin, int echoPin);
+boolean turnToDirection(int targetDir);
 
 
 
@@ -291,26 +294,20 @@ void moveToNet(){
   // robotState = DUMP;
 }
 
-
-void setup() {
-  Wire.begin(ARDUINO_ADDRESS);  // Join I2C bus as slave
-  Wire.onReceive(receiveData);   // Set function to handle received data
-  pinMode(rightTrigPin, OUTPUT);  
-	pinMode(rightEchoPin, INPUT);
-  pinMode(backTrigPin, OUTPUT);  
-	pinMode(backEchoPin, INPUT);
-	pinMode(bucketEchoPin, INPUT);
-  pinMode(bucketTrigPin, OUTPUT);  
-  char rtn = 0;
-  rtn = Lsm303d.initI2C();
-
-  servoA.attach(servoPinA);  // attach to digital pin 5
-  servoB.attach(servoPinB);  // attach to digital pin 6
-  setBucketHeight("LOW");
-  Serial.begin(9600);
-
-  startTime = millis();
+boolean turnToDirection(int targetDir){
+  while(!Lsm303d.isMagReady());// wait for the magnetometer readings to be ready
+	Lsm303d.getMag(mag);  // get the magnetometer values, store them in mag
+  float dir = Lsm303d.getHeading(mag);// Ska det skickas med en parameter här? https://github.com/pololu/lsm303-arduino
+  int leniency = 20;
+  
+  while(!(dir > targetDir - leniency && dir < targetDir + leniency)){ //Turn to face net
+    turnRight(100);
+    while(!Lsm303d.isMagReady());
+    Lsm303d.getMag(mag);
+    dir = Lsm303d.getHeading(mag);
+  }
 }
+
 
 boolean distanceTrig(int trigPin, int echoPin, int nbrOfHits, float threshold){
   int hitStreak = 0;
@@ -321,6 +318,7 @@ boolean distanceTrig(int trigPin, int echoPin, int nbrOfHits, float threshold){
       hitStreak ++;
     }
   }
+  Serial.print("hitStreak: ");
   Serial.println(hitStreak);
   if (hitStreak == nbrOfHits){
     return true;
@@ -328,19 +326,51 @@ boolean distanceTrig(int trigPin, int echoPin, int nbrOfHits, float threshold){
   return false;
 } 
 
+void setup() {
+  Wire.begin(ARDUINO_ADDRESS);  // Join I2C bus as slave
+  Wire.onReceive(receiveData);   // Set function to handle received data
+  pinMode(rightTrigPin, OUTPUT);  
+	pinMode(rightEchoPin, INPUT);
+  pinMode(backTrigPin, OUTPUT);  
+	pinMode(backEchoPin, INPUT);
+	pinMode(bucketEchoPin, INPUT);
+  pinMode(bucketTrigPin, OUTPUT);  
+  servoA.attach(servoPinA);  // attach to digital pin 5
+  servoB.attach(servoPinB);  // attach to digital pin 6
+  setBucketHeight("LOW");
+  char rtn = 0;
+  
+  Serial.begin(9600);  // Serial is used for debugging
+  Serial.println("\r\npower on");
+  rtn = Lsm303d.initI2C();
+  //rtn = Lsm303d.initSPI(SPI_CS);
+  if(rtn != 0)  // Initialize the LSM303, using a SCALE full-scale range
+	{
+		Serial.println("\r\nLSM303D is not found");
+		while(1);
+	}
+	else
+	{
+		Serial.println("\r\nLSM303D is found");
+	}
+
+  startTime = millis();
+}
+
+
 void loop() {
 
   
-  if(distanceTrig(bucketTrigPin, bucketEchoPin, 10, 14)){ //Boll i skopa
-    Serial.println("Ball detected.");
-    robotState = DUMP;
-  }
+  // if(distanceTrig(bucketTrigPin, bucketEchoPin, 10, 14)){ //Boll i skopa
+  //   Serial.println("Ball detected.");
+  //   robotState = DUMP;
+  // }
 
 
   
 	Lsm303d.getAccel(accel);
-	while(!Lsm303d.isMagReady());
-	Lsm303d.getMag(mag);  
+	while(!Lsm303d.isMagReady());// wait for the magnetometer readings to be ready
+	Lsm303d.getMag(mag);  // get the magnetometer values, store them in mag
 	
 	for (int i=0; i<3; i++)
 	{
@@ -349,7 +379,7 @@ void loop() {
 	heading = Lsm303d.getHeading(mag);
 	titleHeading = Lsm303d.getTiltHeading(mag, realAccel);
 	
-  Serial.println(titleHeading, 3); //printar riktning i grader
+  Serial.println(titleHeading, 3);
   
   
 

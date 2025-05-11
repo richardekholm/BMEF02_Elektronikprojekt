@@ -1,160 +1,104 @@
-#include <Arduino.h>
+/* LSM303DLM Example Code base on LSM303DLH example code by Jim Lindblom SparkFun Electronics
+   
+   date: 9/6/11
+   license: Creative commons share-alike v3.0
+   
+   Modified by:Frankie.Chu
+   Modified by:Jacky.Zhang 2014-12-11: Ported to 6-Axis Accelerometer&Compass of Seeed Studio
+   Modified by:Jacky.Zhang 2015-1-6: added SPI driver
+   
+   Summary:
+   Show how to calculate level and tilt-compensated heading using
+   the snazzy LSM303DLH 3-axis magnetometer/3-axis accelerometer.
+   
+   Firmware:
+   You can set the accelerometer's full-scale range by setting
+   the SCALE constant to either 2, 4, or 8. This value is used
+   in the initLSM303() function. For the most part, all other
+   registers in the LSM303 will be at their default value.
+   
+   Use the write() and read() functions to write
+   to and read from the LSM303's internal registers.
+   
+   Use getLSM303_accel() and getLSM303_mag() to get the acceleration
+   and magneto values from the LSM303. You'll need to pass each of
+   those functions an array, where the data will be stored upon
+   return from the void.
+   
+   getHeading() calculates a heading assuming the sensor is level.
+   A float between 0 and 360 is returned. You need to pass it a
+   array with magneto values. 
+   
+   getTiltHeading() calculates a tilt-compensated heading.
+   A float between 0 and 360 degrees is returned. You need
+   to pass this function both a magneto and acceleration array.
+   
+   Headings are calculated as specified in AN3192:
+   http://www.sparkfun.com/datasheets/Sensors/Magneto/Tilt%20Compensated%20Compass.pdf
+*/
 
-const int trigPin = 7;  
-const int echoPin = 10; 
-const int ledPin = 13;
+/*
+hardware & software comment
 
-// Motor control pins (using Mega PWM pins)
-const int PWM_A   = 3,
-          DIR_A   = 12,
-          BRAKE_A = 9,
-          SNS_A   = A0;
+I2C mode:
+1, solder the jumper "I2C EN" and the jumper of ADDR to 0x1E
+2, use Lsm303d.initI2C() function to initialize the Grove by I2C
 
-const int PWM_B   = 11,
-          DIR_B   = 13,
-          BRAKE_B = 8,
-          SNS_B   = A1;
+SPI mode:
 
-// Timing and speed constants
-const int moveTime = 1000;      
-const int turnTime = 500;       
-const int stepTime = 20;
-const int motorSpeed = 255;     
+1, break the jumper "I2C_EN" and the jumper ADDR to any side
+2, define a pin as chip select for SPI protocol.
+3, use Lsm303d.initSPI(SPI_CS) function to initialize the Grove by SPI
+SPI.h sets these for us in arduino
+const int SDI = 11;
+const int SDO = 12;
+const int SCL = 13;
+*/
+
+#include <LSM303D.h>
+#include <Wire.h>
+
+/* Global variables */
+int accel[3];  // we'll store the raw acceleration values here
+int mag[3];  // raw magnetometer values stored here
+float realAccel[3];  // calculated acceleration values here
+float heading, titleHeading;
 
 
-// Function prototypes
-void setup();
-void loop();
-void moveForward(int duration);
-void moveBackward(int duration);
-void turnRight(int duration);
-void turnLeft(int duration);
-void stopMotors();
-
-// Measurement constants
-float duration, distance;
-
-// Functions
-
-long getDistance() {
-  digitalWrite(trigPin, LOW);
-  delayMicroseconds(2);
-  digitalWrite(trigPin, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(trigPin, LOW);
-  return pulseIn(echoPin, HIGH) * 0.034 / 2;
+void setup()
+{
+	char rtn = 0;
+    Serial.begin(9600);  // Serial is used for debugging
+    Serial.println("\r\npower on");
+    rtn = Lsm303d.initI2C();
+    //rtn = Lsm303d.initSPI(SPI_CS);
+    if(rtn != 0)  // Initialize the LSM303, using a SCALE full-scale range
+	{
+		Serial.println("\r\nLSM303D is not found");
+		while(1);
+	}
+	else
+	{
+		Serial.println("\r\nLSM303D is found");
+	}
 }
 
-void lightOn() {
-    digitalWrite(ledPin, HIGH);  
-}
-
-void lightOff() {
-    digitalWrite(ledPin, LOW);  
-}
-
-void moveForward(int duration) {
-    digitalWrite(DIR_A, LOW);    
-    digitalWrite(DIR_B, HIGH);    
-    analogWrite(PWM_A, motorSpeed);
-    analogWrite(PWM_B, motorSpeed);
-    delay(duration);
-    Serial.println("Moving forward");
-}
-
-void moveBackward(int duration) {
-    digitalWrite(DIR_A, HIGH);     
-    digitalWrite(DIR_B, LOW);     
-    analogWrite(PWM_A, motorSpeed);
-    analogWrite(PWM_B, motorSpeed);
-    delay(duration);
-    Serial.println("Moving backward");
-}
-
-void stepForward() {
-    digitalWrite(DIR_A, LOW);    
-    digitalWrite(DIR_B, HIGH);    
-    analogWrite(PWM_A, motorSpeed);
-    analogWrite(PWM_B, motorSpeed);
-    Serial.println("Stepping forward");
-    delay(stepTime);                    
-    stopMotors();                        
-}
-
-void turnRight(int duration) {
-    digitalWrite(DIR_A, LOW);    
-    digitalWrite(DIR_B, LOW);     
-    analogWrite(PWM_A, motorSpeed);
-    analogWrite(PWM_B, motorSpeed);
-    delay(duration);
-    Serial.println("Turning right");
-} 
-
-void turnLeft(int duration) {
-    digitalWrite(DIR_A, HIGH);     
-    digitalWrite(DIR_B, HIGH);    
-    analogWrite(PWM_A, motorSpeed);
-    analogWrite(PWM_B, motorSpeed);
-    delay(duration);
-    Serial.println("Turning left");
-}
-
-void stopMotors() {
-    analogWrite(PWM_A, 0);
-    analogWrite(PWM_B, 0);
-    Serial.println("Stopped");
-}
-
-// SETUP AND LOOP
-
-void setup() {  
-    pinMode(trigPin, OUTPUT);  
-    pinMode(echoPin, INPUT);
-
-    // Set motor pins as outputs
-    pinMode(PWM_A, OUTPUT);
-    pinMode(DIR_A, OUTPUT);
-    pinMode(BRAKE_A, OUTPUT);
-    pinMode(PWM_B, OUTPUT);
-    pinMode(DIR_B, OUTPUT);
-    pinMode(BRAKE_B, OUTPUT);
-    
-    // Release motor brakes
-    digitalWrite(BRAKE_A, LOW);
-    digitalWrite(BRAKE_B, LOW);
-
-    // Start with motors off
-    stopMotors();
-
-    // Initialize Serial for debugging 
-    Serial.begin(115200);  
-}  
-
-void loop() {  
-  digitalWrite(trigPin, LOW);  
-  delayMicroseconds(2);  
-  digitalWrite(trigPin, HIGH);  
-  delayMicroseconds(10);  
-  digitalWrite(trigPin, LOW);  
-
-  duration = pulseIn(echoPin, HIGH);  
-  distance = (duration * 0.0343) / 2;
-
-  Serial.println(distance);
-
-  if (distance < 30) {
-      stopMotors();          // Stanna
-      delay(1000);           // Vänta 1 sek
-      moveBackward(200);     // Backa i 200 ms
-      stopMotors();          // Stanna igen
-      delay(500);            // Vänta 500 ms
-      turnRight(325);        // Sväng höger i 350 ms
-      stopMotors();          // Stanna efter sväng
-      delay(500);            // Vänta 500 ms
-      moveForward(500);      // Kör framåt för att fortsätta röra sig
-  } 
-  else {
-      moveForward(50);       // Fortsätt köra framåt om det är fritt
-  }
+void loop()
+{
+	
+	//getLSM303_accel(accel);  // get the acceleration values and store them in the accel array
+	Lsm303d.getAccel(accel);
+	while(!Lsm303d.isMagReady());// wait for the magnetometer readings to be ready
+	Lsm303d.getMag(mag);  // get the magnetometer values, store them in mag
+	
+	for (int i=0; i<3; i++)
+	{
+		realAccel[i] = accel[i] / pow(2, 15) * ACCELE_SCALE;  // calculate real acceleration values, in units of g
+	}
+	heading = Lsm303d.getHeading(mag);
+	titleHeading = Lsm303d.getTiltHeading(mag, realAccel);
+	
+  Serial.println(titleHeading, 3);
+	
 }
 
