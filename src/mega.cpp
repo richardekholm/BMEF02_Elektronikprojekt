@@ -5,6 +5,7 @@
 
 
 #define ARDUINO_ADDRESS 8  // Must match ESP32 sender
+#define GYRO_ADRESS 0x1E  
 
 // Motor control pins (using Mega PWM pins)
 const int PWM_A   = 3,
@@ -205,10 +206,12 @@ boolean ballInBucket(){
   if (now - startTime >= 500UL) {
     if (hits > 30) {
       Serial.println("Ball detected.");
+      return true;
     }
     hits = 0;
     startTime = now;
   }
+  return false;
 }
 
 void receiveData(int byteCount) {
@@ -223,7 +226,7 @@ void receiveData(int byteCount) {
   int y = (Wire.read() << 8) | Wire.read();
   int w = (Wire.read() << 8) | Wire.read();
   int h = (Wire.read() << 8) | Wire.read();
-  
+
   int midX = x + (w / 2); // vi ska testa  om detta är the case eller om x redan returneras som mittpunkt från ESP32
   
   // Serial.println(w);
@@ -327,39 +330,42 @@ boolean distanceTrig(int trigPin, int echoPin, int nbrOfHits, float threshold){
 } 
 
 void setup() {
-  Wire.begin(ARDUINO_ADDRESS);  // Join I2C bus as slave
-  Wire.onReceive(receiveData);   // Set function to handle received data
+  // Wire.begin(ARDUINO_ADDRESS);  // Join I2C bus as slave
+  Wire.begin();
+  // Wire.onReceive(receiveData);   // Set function to handle received data
   pinMode(rightTrigPin, OUTPUT);  
 	pinMode(rightEchoPin, INPUT);
   pinMode(backTrigPin, OUTPUT);  
 	pinMode(backEchoPin, INPUT);
 	pinMode(bucketEchoPin, INPUT);
   pinMode(bucketTrigPin, OUTPUT);  
-  servoA.attach(servoPinA);  // attach to digital pin 5
-  servoB.attach(servoPinB);  // attach to digital pin 6
-  setBucketHeight("LOW");
-  char rtn = 0;
+  // servoA.attach(servoPinA);  // attach to digital pin 5
+  // servoB.attach(servoPinB);  // attach to digital pin 6
+  // setBucketHeight("LOW");
   
-  Serial.begin(9600);  // Serial is used for debugging
-  Serial.println("\r\npower on");
-  rtn = Lsm303d.initI2C();
-  //rtn = Lsm303d.initSPI(SPI_CS);
-  if(rtn != 0)  // Initialize the LSM303, using a SCALE full-scale range
-	{
-		Serial.println("\r\nLSM303D is not found");
-		while(1);
-	}
-	else
-	{
-		Serial.println("\r\nLSM303D is found");
-	}
+  
+  // char rtn = 0;
+  
+  Serial.begin(9600);  
+  Serial.println("STARTING SETUP");
+  // Serial.println("\r\npower on");
+  // rtn = Lsm303d.initI2C();
+  // //rtn = Lsm303d.initSPI(SPI_CS);
+  // if(rtn != 0)  // Initialize the LSM303, using a SCALE full-scale range
+	// {
+	// 	Serial.println("\r\nLSM303D is not found");
+	// 	while(1);
+	// }
+	// else
+	// {
+	// 	Serial.println("\r\nLSM303D is found");
+	// }
 
   startTime = millis();
 }
 
 
 void loop() {
-
   
   // if(distanceTrig(bucketTrigPin, bucketEchoPin, 10, 14)){ //Boll i skopa
   //   Serial.println("Ball detected.");
@@ -368,20 +374,33 @@ void loop() {
 
 
   
-	Lsm303d.getAccel(accel);
-	while(!Lsm303d.isMagReady());// wait for the magnetometer readings to be ready
-	Lsm303d.getMag(mag);  // get the magnetometer values, store them in mag
+	// Lsm303d.getAccel(accel);
+	// while(!Lsm303d.isMagReady());// wait for the magnetometer readings to be ready
+	// Lsm303d.getMag(mag);  // get the magnetometer values, store them in mag
 	
-	for (int i=0; i<3; i++)
-	{
-		realAccel[i] = accel[i] / pow(2, 15) * ACCELE_SCALE;  // calculate real acceleration values, in units of g
-	}
-	heading = Lsm303d.getHeading(mag);
-	titleHeading = Lsm303d.getTiltHeading(mag, realAccel);
+	// for (int i=0; i<3; i++)
+	// {
+	// 	realAccel[i] = accel[i] / pow(2, 15) * ACCELE_SCALE;  // calculate real acceleration values, in units of g
+	// }
+	// heading = Lsm303d.getHeading(mag);
+	// titleHeading = Lsm303d.getTiltHeading(mag, realAccel);
 	
-  Serial.println(titleHeading, 3);
-  
-  
+  // Serial.println(titleHeading, 3);
+  Wire.beginTransmission(GYRO_ADRESS);
+  Wire.write(0x42); // Set the register to read from
+  Wire.write(0x43); // Set the register to read from
+  Wire.endTransmission();
+  Wire.requestFrom(GYRO_ADRESS, 2); // Request 6 bytes of data
+  Serial.println(Wire.available());
+  if (Wire.available() == 2) {
+    int16_t MSBX = Wire.read() << 8 | Wire.read();
+    int16_t LSBX = Wire.read() << 8 | Wire.read();
+    Serial.println(MSBX);
+    Serial.println(LSBX);
+    
+  }
+  delay(100);
+  robotState = IDLE;
 
   switch (robotState) {
     case FORWARD:
