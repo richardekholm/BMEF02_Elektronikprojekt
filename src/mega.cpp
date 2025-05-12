@@ -18,10 +18,10 @@ const int PWM_B   = 11,
 
 const int ledPin = 13;
 
-const int rightTrigPin = 32,  
-          rightEchoPin = 33, 
-          backTrigPin = 30,
-          backEchoPin = 31,
+const int backLeftTrigPin = 30,
+          backLeftEchoPin = 31,
+          backRightTrigPin = 32,
+          backRightEchoPin = 33,
           bucketTrigPin = 34,
           bucketEchoPin = 35;
 
@@ -72,9 +72,10 @@ void test(int duration);
 void search(int duration);
 void moveToNet();
 void setBucketHeight(String height);
-boolean ballInBucket();
+boolean isStuck();
 float getInstantDistance(int trigPin, int echoPin);
 void(* resetFunc) (void) = 0; //ACSHUALLY
+boolean backUpStraight();
 
 
 //Functions
@@ -160,6 +161,51 @@ void search(int duration) {
   turnRight(stepTime); 
 }
 
+boolean backUpStraight(){
+  const int disparityAllowance = 3;
+  float leftDistance = getInstantDistance(backLeftTrigPin, backLeftEchoPin);
+  float rightDistance = getInstantDistance(backRightTrigPin, backRightEchoPin);
+  float disparity = leftDistance - rightDistance;
+  while(leftDistance > 20 || rightDistance > 20){//Långt ifrån väggen, back up
+    moveBackward(moveTime);
+    leftDistance = getInstantDistance(backLeftTrigPin, backLeftEchoPin);
+    rightDistance = getInstantDistance(backRightTrigPin, backRightEchoPin);
+    Serial.println("not close to wall");
+    Serial.print("leftDistance = ");
+    Serial.println(leftDistance);
+    Serial.print("rightDistance = ");
+    Serial.println(rightDistance);
+  }
+  while(abs(disparity) > disparityAllowance){
+    if(disparity > 0){
+      Serial.println("rotating left");
+      turnLeft(stepTime/2);
+      leftDistance = getInstantDistance(backLeftTrigPin, backLeftEchoPin);
+      rightDistance = getInstantDistance(backRightTrigPin, backRightEchoPin);
+      disparity = leftDistance - rightDistance;
+    }
+    else{
+      Serial.println("rotating right");
+      turnRight(stepTime/2);
+      leftDistance = getInstantDistance(backLeftTrigPin, backLeftEchoPin);
+      rightDistance = getInstantDistance(backRightTrigPin, backRightEchoPin);
+      disparity = leftDistance - rightDistance;
+    }
+    leftDistance = getInstantDistance(backLeftTrigPin, backLeftEchoPin);
+    rightDistance = getInstantDistance(backRightTrigPin, backRightEchoPin);
+    Serial.print("leftDistance = ");
+    Serial.println(leftDistance);
+    Serial.print("rightDistance = ");
+    Serial.println(rightDistance);
+    disparity = leftDistance - rightDistance;  
+  }
+  Serial.println("backing up straight");
+  moveBackward(moveTime);
+  stop(1000);
+  return true;
+
+}
+
 void setBucketHeight(String height){
   if(height == "LOW"){
     servoA.write(110);    // Move to 0 degrees
@@ -190,24 +236,26 @@ void setBucketHeight(String height){
   }
 }
 
-boolean ballInBucket(){
-  float dis = getInstantDistance(bucketTrigPin, bucketEchoPin);
-  //Serial.println(dis);
-  
-  if (dis < 14){
-    hits++;
-  }
 
-  unsigned long now = millis();
-  if (now - startTime >= 500UL) {
-    if (hits > 30) {
-      Serial.println("Ball detected in bucket.");
-      return true;
-    }
-    hits = 0;
-    startTime = now;
-  }
-  return false;
+
+boolean isStuck(){
+  // float dis = getInstantDistance(backTrigPin, backEchoPin);
+  // //Serial.println(dis);
+  
+  // if (dis > 280){
+  //   hits++;
+  // }
+
+  // unsigned long now = millis();
+  // if (now - startTime >= 500UL) {
+  //   if (hits > 30) {
+  //     Serial.println("TrAV is stuck");
+  //     return true;
+  //   }
+  //   hits = 0;
+  //   startTime = now;
+  // }
+  // return false;
 }
 
 
@@ -230,36 +278,33 @@ boolean distanceTrig(int trigPin, int echoPin, int nbrOfHits, float threshold){
 } 
 
 void moveToNet(){
-  boolean closeToWall = distanceTrig(backTrigPin, backEchoPin, backTrigstreak, backShortDistance);
-  setBucketHeight("MID"); //Bucket in transport mode 
+  // boolean closeToWall = distanceTrig(backTrigPin, backEchoPin, backTrigstreak, backShortDistance);
+  // setBucketHeight("MID"); //Bucket in transport mode 
   
-  while(!closeToWall){//While not at net, randomly JUMP AROUND
-    Serial.print("backdistance = " );
-    Serial.println(getInstantDistance(backTrigPin, backEchoPin));
+  // while(!closeToWall){//While not at net, randomly JUMP AROUND
+  //   Serial.print("backdistance = " );
+  //   Serial.println(getInstantDistance(backTrigPin, backEchoPin));
     
-    moveBackward(500);
-    stop(stopTime);
-    if (distanceTrig(backTrigPin, backEchoPin, backTrigstreak, backLongDistance)){  //Trig vid alla väggar
-      moveBackward(stepTime);
-      if (distanceTrig(backTrigPin, backEchoPin, backTrigstreak, backShortDistance)){  //Vid nät
-        break;
-      }
-      moveForward(stepTime);
-      turnRight(stepTime);
+  //   moveBackward(500);
+  //   stop(stopTime);
+  //   if (distanceTrig(backTrigPin, backEchoPin, backTrigstreak, backLongDistance)){  //Trig vid alla väggar
+  //     moveBackward(stepTime);
+  //     if (distanceTrig(backTrigPin, backEchoPin, backTrigstreak, backShortDistance)){  //Vid nät
+  //       break;
+  //     }
+  //     moveForward(stepTime);
+  //     turnRight(stepTime);
 
-    }
-    closeToWall = distanceTrig(backTrigPin, backEchoPin, backTrigstreak, backShortDistance);
-  }
+  //   }
+  //   closeToWall = distanceTrig(backTrigPin, backEchoPin, backTrigstreak, backShortDistance);
+  // }
 }
 
 void receiveData(int byteCount) {
-  Serial.println("receiveData() called.");  
-  if (byteCount < 10){
-    Serial.println("Too small data");  
+  if (byteCount < 10){  
     return;
   }
   if (robotState == TO_NET || robotState == DUMP) { // If already moving to net, ignore new data
-    Serial.println("To net triggered");  
     return;
   }
   
@@ -272,7 +317,6 @@ void receiveData(int byteCount) {
   int h = (Wire.read() << 8) | Wire.read();
   
   if (w >= wallBox){
-    Serial.println("Weird");  
     moveBackward(stepTime);
     robotState = SEARCH;
     return;
@@ -282,21 +326,16 @@ void receiveData(int byteCount) {
   Serial.print("Ball detected in arena with width = ");
   Serial.println(w);
   if(w > 90){
-    Serial.println("1");
     robotState = FORWARD;
   } else if (x <= w) {
-    Serial.println("2");
     robotState = LEFT;
   } else if (x >= 240-w) {
-    Serial.println("3");
     robotState = RIGHT;
   } else if(x >w && x < 240-w){
     // if (!distanceTrig(bucketTrigPin, bucketEchoPin, 20, 14)) {
-      Serial.println("4");
       robotState = FORWARD;
       // }
     } else {
-      Serial.println("5");
       robotState = SEARCH;
   }
 }
@@ -306,6 +345,7 @@ void setup() {
     moveForward(stepTime);//stoppa in den
     virgin = false;
   }
+
   Serial.begin(9600);  
   Serial.println("STARTING SETUP");
   pinMode(A5, INPUT);  // Set pin A5 as input
@@ -313,8 +353,10 @@ void setup() {
   Wire.onReceive(receiveData);   // Set function to handle received data
   // pinMode(rightTrigPin, OUTPUT);  //Används inte längre
 	// pinMode(rightEchoPin, INPUT);
-  pinMode(backTrigPin, OUTPUT);  
-	pinMode(backEchoPin, INPUT);
+  pinMode(backLeftTrigPin, OUTPUT);  
+	pinMode(backLeftEchoPin, INPUT);
+  pinMode(backRightTrigPin, OUTPUT);  
+	pinMode(backRightEchoPin, INPUT);
 	pinMode(bucketEchoPin, INPUT);
   pinMode(bucketTrigPin, OUTPUT);  
   servoA.attach(servoPinA);  // attach to digital pin 5
@@ -326,9 +368,15 @@ void setup() {
 
 
 void loop() {
+  while(true){
+    robotState = TO_NET;
+  boolean bus = backUpStraight();
+  while(!bus);
+  }
+  
   if(distanceTrig(bucketTrigPin, bucketEchoPin, hitThreshold, bucketDistance)){ //Boll i skopa
     Serial.println("Ball detected in bucket.");
-    robotState = TO_NET;
+    robotState = TO_NET; //Greed is good
   }
   
   switch (robotState) {
