@@ -5,7 +5,6 @@
 
 
 #define ARDUINO_ADDRESS 8  // Must match ESP32 sender
-#define GYRO_ADRESS 0x1E  
 
 // Motor control pins (using Mega PWM pins)
 const int PWM_A   = 3,
@@ -32,7 +31,7 @@ const int servoPinA = A2,
 
 Servo servoA;
 Servo servoB;
-// LSM303D Lsm303d;
+
 
 
 // Timing and speed constants
@@ -42,20 +41,17 @@ const int stepTime = 100;
 const int stopTime = 500; 
 const int motorSpeed = 90;
 
-int16_t accel[3];  // we'll store the raw acceleration values here
-int16_t mag[3];  // raw magnetometer values stored here
-float realAccel[3];  // calculated acceleration values here
-float heading, titleHeading;
+
 
 int hits = 0;
 unsigned long startTime = 0;
+unsigned long lastMoveTime = 0;
+const unsigned long moveDuration = 500; // time per action in ms
 
 
 // Declare robot state and timing variables
 enum RobotState {IDLE, FORWARD, LEFT, RIGHT, STOP, BACKWARD, SEARCH, TEST, TO_NET, DUMP};
 RobotState robotState = IDLE;
-unsigned long lastMoveTime = 0;
-const unsigned long moveDuration = 500; // time per action in ms
 
 //Function declarations
 void moveForward(int duration);
@@ -136,18 +132,6 @@ void stop(int duration) {
   delay(duration);
 }
 
-// float getInstantDistance(int trigPin, int echoPin){
-//   float distance = 0;
-//   float duration = 0;
-//   digitalWrite(trigPin, LOW);  
-//     delayMicroseconds(2);  
-//     digitalWrite(trigPin, HIGH);  
-//     delayMicroseconds(10);
-//     digitalWrite(trigPin, LOW);
-//     duration = pulseIn(echoPin, HIGH);
-//     distance = (duration*.0343)/2;
-//     return distance;
-// }
 
 float getInstantDistance(int trigPin, int echoPin) {
   // fire pulse
@@ -167,10 +151,7 @@ float getInstantDistance(int trigPin, int echoPin) {
 }
 
 void search(int duration) {
-  // delay(stepTime);
   turnRight(stepTime); 
-  // stop(duration*2);
-  // delay(stepTime*2);
 }
 
 void setBucketHeight(String height){
@@ -183,8 +164,8 @@ void setBucketHeight(String height){
   else if(height == "MID"){
     servoA.write(55);     // Move to 55 degrees
     servoB.write(65);     // Move to 55 degrees
-    delay(1000);
     Serial.println("Moving to 55 degrees");
+    delay(1000);
   }
   else if(height == "HI"){
     servoA.write(0);      // Move to 120 degrees
@@ -196,7 +177,7 @@ void setBucketHeight(String height){
 
 boolean ballInBucket(){
   float dis = getInstantDistance(bucketTrigPin, bucketEchoPin);
-  Serial.println(dis);
+  //Serial.println(dis);
   
   if (dis < 14){
     hits++;
@@ -246,70 +227,59 @@ void receiveData(int byteCount) {
 
 
 void moveToNet(){
-  // setBucketHeight("MID"); //Bucket in transport mode 
+  setBucketHeight("MID"); //Bucket in transport mode 
   
-  // float rightDistance = getAvgDistance(rightTrigPin, rightEchoPin);
-  // float backDistance = getAvgDistance(backTrigPin, backEchoPin);
-  // float shortDistance = 4.5;
-  // float midDistance = 8; //Beror på pinnens längd
-  // while(backDistance > shortDistance){
-  //   Serial.print("rightDistance = ");
-  //   Serial.println(rightDistance);
-  //   Serial.print("backDistance = ");
-  //   Serial.println(backDistance);
+  float rightDistance = getAvgDistance(rightTrigPin, rightEchoPin);
+  float backDistance = getAvgDistance(backTrigPin, backEchoPin);
+  float shortDistance = 4.5;
+  float midDistance = 8; //Beror på pinnens längd
+  while(backDistance > shortDistance){
+    Serial.print("rightDistance = ");
+    Serial.println(rightDistance);
+    Serial.print("backDistance = ");
+    Serial.println(backDistance);
     
-  //   if(backDistance > midDistance && rightDistance > midDistance){ //CASE 1: Center of arena (Find wall to begin traversing)
-  //     Serial.println("case 1");
-  //     moveBackward(stepTime);
-  //   }
-  //   else if(backDistance < midDistance && backDistance > shortDistance && rightDistance > midDistance){ //CASE 2: Back at wall, not parallell to wall (rotate until parallell)
-  //     Serial.println("case 2");
-  //     moveBackward(stepTime/2);
-  //     backDistance = getAvgDistance(backTrigPin, backEchoPin);
-  //     if (backDistance < shortDistance){
-  //       break;
-  //     }
-  //     moveForward(stepTime);
-  //     while (rightDistance > midDistance){
-  //       rightDistance = getAvgDistance(rightTrigPin, rightEchoPin);
-  //       turnRight(stepTime*2);
-  //     }
-  //   }
-  //   else if(backDistance > midDistance && rightDistance < midDistance){ //CASE 2,5: Back at wall, parallell to wall (Move along wall)
-  //     Serial.println("case 2.5");
-  //     if (rightDistance < 2*shortDistance){
-  //       turnRight(stepTime*2);
-  //       // continue;
-  //     }
-  //     moveBackward(stepTime);
-  //   }
-  //   else if(backDistance < midDistance && backDistance > shortDistance && rightDistance < midDistance){ //CASE 3: Corner (Rotate until parallell again)
-  //     Serial.println("case 3");
-  //     turnRight(stepTime);
-  //   }
-    
-  //   rightDistance = getAvgDistance(rightTrigPin, rightEchoPin);
-  //   backDistance = getAvgDistance(backTrigPin, backEchoPin);
-  //   delay(stepTime);
-  // }
-  // Serial.println("case 4");
-  // Serial.println("Net found.");
-  // robotState = DUMP;
-}
+    if(backDistance > midDistance && rightDistance > midDistance){ //CASE 1: Center of arena (Find wall to begin traversing)
+      Serial.println("case 1");
+      moveBackward(stepTime);
+    }
+    else if(backDistance < midDistance && backDistance > shortDistance && rightDistance > midDistance){ //CASE 2: Back at wall, not parallell to wall (rotate until parallell)
+      Serial.println("case 2");
+      moveBackward(stepTime/2);
+      backDistance = getAvgDistance(backTrigPin, backEchoPin);
+      if (backDistance < shortDistance){
+        break;
+      }
+      moveForward(stepTime);
+      while (rightDistance > midDistance){
+        rightDistance = getAvgDistance(rightTrigPin, rightEchoPin);
+        turnRight(stepTime*2);
+      }
+    }
+    else if(backDistance > midDistance && rightDistance < midDistance){ //CASE 2,5: Back at wall, parallell to wall (Move along wall)
+      Serial.println("case 2.5");
+      if (rightDistance < 2*shortDistance){
+        turnRight(stepTime*2);
+        // continue;
+      }
+      moveBackward(stepTime);
+    }
+    else if(backDistance < midDistance && backDistance > shortDistance && rightDistance < midDistance){ //CASE 3: Corner (Rotate until parallell again)
+      Serial.println("case 3");
+      turnRight(stepTime);
+    }
+    else{
+    Serial.println("case 4");
+    Serial.println("Net found.");
+    robotState = DUMP;
+    }
 
-boolean turnToDirection(int targetDir){
-  while(!Lsm303d.isMagReady());// wait for the magnetometer readings to be ready
-	Lsm303d.getMag(mag);  // get the magnetometer values, store them in mag
-  float dir = Lsm303d.getHeading(mag);// Ska det skickas med en parameter här? https://github.com/pololu/lsm303-arduino
-  int leniency = 20;
-  
-  while(!(dir > targetDir - leniency && dir < targetDir + leniency)){ //Turn to face net
-    turnRight(100);
-    while(!Lsm303d.isMagReady());
-    Lsm303d.getMag(mag);
-    dir = Lsm303d.getHeading(mag);
+    rightDistance = getAvgDistance(rightTrigPin, rightEchoPin);
+    backDistance = getAvgDistance(backTrigPin, backEchoPin);
+    delay(stepTime);
   }
 }
+
 
 
 boolean distanceTrig(int trigPin, int echoPin, int nbrOfHits, float threshold){
@@ -330,77 +300,31 @@ boolean distanceTrig(int trigPin, int echoPin, int nbrOfHits, float threshold){
 } 
 
 void setup() {
-  // Wire.begin(ARDUINO_ADDRESS);  // Join I2C bus as slave
+  Serial.begin(9600);  
+  Serial.println("STARTING SETUP");
+  pinMode(A5, INPUT);  // Set pin A5 as input
+  Wire.begin(ARDUINO_ADDRESS);  // Join I2C bus as slave
   Wire.begin();
-  // Wire.onReceive(receiveData);   // Set function to handle received data
+  Wire.onReceive(receiveData);   // Set function to handle received data
   pinMode(rightTrigPin, OUTPUT);  
 	pinMode(rightEchoPin, INPUT);
   pinMode(backTrigPin, OUTPUT);  
 	pinMode(backEchoPin, INPUT);
 	pinMode(bucketEchoPin, INPUT);
   pinMode(bucketTrigPin, OUTPUT);  
-  // servoA.attach(servoPinA);  // attach to digital pin 5
-  // servoB.attach(servoPinB);  // attach to digital pin 6
-  // setBucketHeight("LOW");
-  
-  
-  // char rtn = 0;
-  
-  Serial.begin(9600);  
-  Serial.println("STARTING SETUP");
-  // Serial.println("\r\npower on");
-  // rtn = Lsm303d.initI2C();
-  // //rtn = Lsm303d.initSPI(SPI_CS);
-  // if(rtn != 0)  // Initialize the LSM303, using a SCALE full-scale range
-	// {
-	// 	Serial.println("\r\nLSM303D is not found");
-	// 	while(1);
-	// }
-	// else
-	// {
-	// 	Serial.println("\r\nLSM303D is found");
-	// }
-
+  servoA.attach(servoPinA);  // attach to digital pin 5
+  servoB.attach(servoPinB);  // attach to digital pin 6
+  setBucketHeight("LOW");
   startTime = millis();
 }
 
 
 void loop() {
-  
-  // if(distanceTrig(bucketTrigPin, bucketEchoPin, 10, 14)){ //Boll i skopa
-  //   Serial.println("Ball detected.");
-  //   robotState = DUMP;
-  // }
 
-
-  
-	// Lsm303d.getAccel(accel);
-	// while(!Lsm303d.isMagReady());// wait for the magnetometer readings to be ready
-	// Lsm303d.getMag(mag);  // get the magnetometer values, store them in mag
-	
-	// for (int i=0; i<3; i++)
-	// {
-	// 	realAccel[i] = accel[i] / pow(2, 15) * ACCELE_SCALE;  // calculate real acceleration values, in units of g
-	// }
-	// heading = Lsm303d.getHeading(mag);
-	// titleHeading = Lsm303d.getTiltHeading(mag, realAccel);
-	
-  // Serial.println(titleHeading, 3);
-  Wire.beginTransmission(GYRO_ADRESS);
-  Wire.write(0x42); // Set the register to read from
-  Wire.write(0x43); // Set the register to read from
-  Wire.endTransmission();
-  Wire.requestFrom(GYRO_ADRESS, 2); // Request 6 bytes of data
-  Serial.println(Wire.available());
-  if (Wire.available() == 2) {
-    int16_t MSBX = Wire.read() << 8 | Wire.read();
-    int16_t LSBX = Wire.read() << 8 | Wire.read();
-    Serial.println(MSBX);
-    Serial.println(LSBX);
-    
+  if(distanceTrig(bucketTrigPin, bucketEchoPin, 10, 14)){ //Boll i skopa
+    Serial.println("Ball detected.");
+    robotState = TO_NET;
   }
-  delay(100);
-  robotState = IDLE;
 
   switch (robotState) {
     case FORWARD:
