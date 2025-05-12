@@ -1,7 +1,6 @@
 #include <Wire.h>
 #include <Arduino.h>
 #include <Servo.h>
-#include <LSM303D.h>
 
 
 #define ARDUINO_ADDRESS 8  // Must match ESP32 sender
@@ -38,8 +37,8 @@ Servo servoB;
 const int moveTime = 100;      
 const int turnTime = 100;       
 const int stepTime = 100;
-const int stopTime = 500; 
-const int motorSpeed = 90;
+const int stopTime = 400; 
+const int motorSpeed = 255;
 
 
 
@@ -66,7 +65,6 @@ void moveToNet();
 void setBucketHeight(String height);
 boolean ballInBucket();
 float getInstantDistance(int trigPin, int echoPin);
-float getAvgDistance(int trigPin, int echoPin);
 boolean turnToDirection(int targetDir);
 
 
@@ -109,7 +107,8 @@ void moveForward(int duration) {
   digitalWrite(DIR_B, LOW);     
   analogWrite(PWM_A, motorSpeed);
   analogWrite(PWM_B, motorSpeed);
-  delay(duration);     
+  delay(duration);
+  robotState = STOP;     
 } 
 
 void turnLeft(int duration) {
@@ -158,20 +157,29 @@ void setBucketHeight(String height){
   if(height == "LOW"){
     servoA.write(110);    // Move to 0 degrees
     servoB.write(10);     // Move to 0 degrees
-    Serial.println("Moving to 10 degrees");
+    Serial.println("Moving bucket to 10 degrees");
     delay(1000); //alltså sänka denna?
   }
   else if(height == "MID"){
     servoA.write(55);     // Move to 55 degrees
     servoB.write(65);     // Move to 55 degrees
-    Serial.println("Moving to 55 degrees");
+    Serial.println("Moving bucket to 55 degrees");
     delay(1000);
   }
   else if(height == "HI"){
     servoA.write(0);      // Move to 120 degrees
     servoB.write(120);    // Move to 120 degrees
-    Serial.println("Moving to 90 degrees");
+    Serial.println("Moving bucket to 90 degrees");
     delay(1000);
+  }
+  else if (height == "JUST ABOVE"){
+    servoA.write(107);     // Move to 90 degrees
+    servoB.write(13);     // Move to 90 degrees
+    Serial.println("Moving bucket to 90 degrees");
+    delay(1000);
+  }
+  else{
+    Serial.println("Invalid height");
   }
 }
 
@@ -186,7 +194,7 @@ boolean ballInBucket(){
   unsigned long now = millis();
   if (now - startTime >= 500UL) {
     if (hits > 30) {
-      Serial.println("Ball detected.");
+      Serial.println("Ball detected in bucket.");
       return true;
     }
     hits = 0;
@@ -197,7 +205,7 @@ boolean ballInBucket(){
 
 void receiveData(int byteCount) {
   if (byteCount < 10){
-    return; 
+    return;
   }
   
   int target = Wire.read();
@@ -209,14 +217,19 @@ void receiveData(int byteCount) {
   int h = (Wire.read() << 8) | Wire.read();
 
   int midX = x + (w / 2); // vi ska testa  om detta är the case eller om x redan returneras som mittpunkt från ESP32
-  
-  // Serial.println(w);
-  if (midX <= 80) {
+  Serial.print("Ball detected in arena @ X = ");
+  Serial.println(midX);
+  Serial.print("Ball detected in arena with width = ");
+  Serial.println(w);
+  if(w>90){
+    robotState = FORWARD;
+  }
+  else if (x <= w) {
     robotState = LEFT;
-  } else if (midX >= 150) {
+  } else if (x >= 240-w) {
     robotState = RIGHT;
-  } else if(midX > 80 && midX < 150) {
-    if (w < 100) {
+  } else if(x >w && x < 240-w){
+    if (!ballInBucket()) {
       robotState = FORWARD;
     } else {
       robotState = STOP;
@@ -225,20 +238,29 @@ void receiveData(int byteCount) {
   lastMoveTime = millis();  // Update last move time
 }
 
+void moveToNet2(){
+  float rightDistance = getInstantDistance(rightTrigPin, rightEchoPin);
+  float backDistance = getInstantDistance(backTrigPin, backEchoPin);
+  setBucketHeight("MID"); //Bucket in transport mode 
+while(backDistance>5){
+    turnRight(stepTime);
+    moveBackward(2000);
+}
+robotState = DUMP;
 
+  
+}
 void moveToNet(){
   setBucketHeight("MID"); //Bucket in transport mode 
   
-  float rightDistance = getAvgDistance(rightTrigPin, rightEchoPin);
-  float backDistance = getAvgDistance(backTrigPin, backEchoPin);
-  float shortDistance = 4.5;
+  float rightDistance = getInstantDistance(rightTrigPin, rightEchoPin);
+  float backDistance = getInstantDistance(backTrigPin, backEchoPin);
+  Serial.print("rightDistance = " );
+  Serial.println(rightDistance);
+  float shortDistance = 3;
   float midDistance = 8; //Beror på pinnens längd
   while(backDistance > shortDistance){
-    Serial.print("rightDistance = ");
-    Serial.println(rightDistance);
-    Serial.print("backDistance = ");
-    Serial.println(backDistance);
-    
+        
     if(backDistance > midDistance && rightDistance > midDistance){ //CASE 1: Center of arena (Find wall to begin traversing)
       Serial.println("case 1");
       moveBackward(stepTime);
@@ -246,13 +268,13 @@ void moveToNet(){
     else if(backDistance < midDistance && backDistance > shortDistance && rightDistance > midDistance){ //CASE 2: Back at wall, not parallell to wall (rotate until parallell)
       Serial.println("case 2");
       moveBackward(stepTime/2);
-      backDistance = getAvgDistance(backTrigPin, backEchoPin);
+      backDistance = getInstantDistance(backTrigPin, backEchoPin);
       if (backDistance < shortDistance){
         break;
       }
       moveForward(stepTime);
       while (rightDistance > midDistance){
-        rightDistance = getAvgDistance(rightTrigPin, rightEchoPin);
+        rightDistance = getInstantDistance(rightTrigPin, rightEchoPin);
         turnRight(stepTime*2);
       }
     }
@@ -274,8 +296,8 @@ void moveToNet(){
     robotState = DUMP;
     }
 
-    rightDistance = getAvgDistance(rightTrigPin, rightEchoPin);
-    backDistance = getAvgDistance(backTrigPin, backEchoPin);
+    rightDistance = getInstantDistance(rightTrigPin, rightEchoPin);
+    backDistance = getInstantDistance(backTrigPin, backEchoPin);
     delay(stepTime);
   }
 }
@@ -287,12 +309,11 @@ boolean distanceTrig(int trigPin, int echoPin, int nbrOfHits, float threshold){
   for(int i = 0; i < nbrOfHits; i++){
     float dist = getInstantDistance(trigPin, echoPin);
     Serial.println(dist);
-    if(dist < threshold){
+    if(dist < threshold && dist > 0.1){//Anta att värden < 0,1 är felaktiga
       hitStreak ++;
     }
   }
-  Serial.print("hitStreak: ");
-  Serial.println(hitStreak);
+
   if (hitStreak == nbrOfHits){
     return true;
   }
@@ -304,7 +325,6 @@ void setup() {
   Serial.println("STARTING SETUP");
   pinMode(A5, INPUT);  // Set pin A5 as input
   Wire.begin(ARDUINO_ADDRESS);  // Join I2C bus as slave
-  Wire.begin();
   Wire.onReceive(receiveData);   // Set function to handle received data
   pinMode(rightTrigPin, OUTPUT);  
 	pinMode(rightEchoPin, INPUT);
@@ -316,13 +336,21 @@ void setup() {
   servoB.attach(servoPinB);  // attach to digital pin 6
   setBucketHeight("LOW");
   startTime = millis();
+  robotState = SEARCH;
 }
 
 
 void loop() {
+// if ((millis() - lastMoveTime) > moveDuration && robotState != SEARCH) {
+//     // stop();
+//     robotState = SEARCH;
+//     return;
+// }
 
-  if(distanceTrig(bucketTrigPin, bucketEchoPin, 10, 14)){ //Boll i skopa
-    Serial.println("Ball detected.");
+
+
+  if(distanceTrig(bucketTrigPin, bucketEchoPin, 15, 14)){ //Boll i skopa
+    Serial.println("Ball detected in bucket.");
     robotState = TO_NET;
   }
 
@@ -353,7 +381,8 @@ void loop() {
       default:
       break;
     case TO_NET:
-      moveToNet();
+      Serial.println("Moving to net...");
+      moveToNet2(); //denna måste köras klart
       robotState = DUMP;
       break;
     case DUMP:
@@ -362,6 +391,7 @@ void loop() {
       setBucketHeight("HI");
       setBucketHeight("LOW");
       delay(500);
+      moveForward(1000);
       robotState = SEARCH;
       break;
     case IDLE:
