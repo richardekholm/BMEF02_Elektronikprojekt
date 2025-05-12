@@ -38,7 +38,7 @@ const int moveTime = 100;
 const int turnTime = 100;       
 const int stepTime = 100;
 const int stopTime = 400; 
-const int motorSpeed = 255;
+const int motorSpeed = 200;
 
 
 
@@ -143,7 +143,7 @@ float getInstantDistance(int trigPin, int echoPin) {
   // measure time
   unsigned long duration = pulseIn(echoPin, HIGH);
   if (duration == 0 || duration > 25000) {
-    return -1.0f;     // signal “bad reading”
+    // return -1.0f;     // signal “bad reading”    Tog bort för den kan trigga conditions
   }
   // convert to cm
   return (duration * 0.0343f) / 2.0f;
@@ -203,51 +203,19 @@ boolean ballInBucket(){
   return false;
 }
 
-void receiveData(int byteCount) {
-  if (byteCount < 10){
-    return;
-  }
-  
-  int target = Wire.read();
-  int score  = Wire.read();
-  
-  int x = (Wire.read() << 8) | Wire.read();
-  int y = (Wire.read() << 8) | Wire.read();
-  int w = (Wire.read() << 8) | Wire.read();
-  int h = (Wire.read() << 8) | Wire.read();
-
-  int midX = x + (w / 2); // vi ska testa  om detta är the case eller om x redan returneras som mittpunkt från ESP32
-  Serial.print("Ball detected in arena @ X = ");
-  Serial.println(midX);
-  Serial.print("Ball detected in arena with width = ");
-  Serial.println(w);
-  if(w>90){
-    robotState = FORWARD;
-  }
-  else if (x <= w) {
-    robotState = LEFT;
-  } else if (x >= 240-w) {
-    robotState = RIGHT;
-  } else if(x >w && x < 240-w){
-    if (!ballInBucket()) {
-      robotState = FORWARD;
-    } else {
-      robotState = STOP;
-    }
-  }
-  lastMoveTime = millis();  // Update last move time
-}
 
 boolean distanceTrig(int trigPin, int echoPin, int nbrOfHits, float threshold){
   int hitStreak = 0;
   for(int i = 0; i < nbrOfHits; i++){
     float dist = getInstantDistance(trigPin, echoPin);
     Serial.println(dist);
+    // Serial.print(", ");
     if(dist < threshold && dist > 0.1){//Anta att värden < 0,1 är felaktiga
       hitStreak ++;
     }
   }
-
+  Serial.println("");
+  
   if (hitStreak == nbrOfHits){
     return true;
   }
@@ -257,20 +225,19 @@ boolean distanceTrig(int trigPin, int echoPin, int nbrOfHits, float threshold){
 void moveToNet2(){
   boolean backDistance = distanceTrig(backTrigPin, backEchoPin, 10, 5);
   setBucketHeight("MID"); //Bucket in transport mode 
-
+  
   while(!backDistance){//While not at net, randomly JUMP AROUND
     Serial.print("backdistance = " );
     Serial.println(getInstantDistance(backTrigPin, backEchoPin));
- 
-    moveBackward(2000);
-    moveForward(300);
+    
+    moveBackward(500);
     backDistance = distanceTrig(backTrigPin, backEchoPin, 10, 5);
+    if (!backDistance){
+      moveForward(500);
+    }
+  }
+  // robotState = DUMP;   // görs ändå i cases
 }
-robotState = DUMP;
-}
-
-
-  
 
 void moveToNet(){
   setBucketHeight("MID"); //Bucket in transport mode 
@@ -282,7 +249,7 @@ void moveToNet(){
   float shortDistance = 3;
   float midDistance = 8; //Beror på pinnens längd
   while(backDistance > shortDistance){
-        
+    
     if(backDistance > midDistance && rightDistance > midDistance){ //CASE 1: Center of arena (Find wall to begin traversing)
       Serial.println("case 1");
       moveBackward(stepTime);
@@ -313,19 +280,54 @@ void moveToNet(){
       turnRight(stepTime);
     }
     else{
-    Serial.println("case 4");
-    Serial.println("Net found.");
-    robotState = DUMP;
+      Serial.println("case 4");
+      Serial.println("Net found.");
+      robotState = DUMP;
     }
-
+    
     rightDistance = getInstantDistance(rightTrigPin, rightEchoPin);
     backDistance = getInstantDistance(backTrigPin, backEchoPin);
     delay(stepTime);
   }
 }
 
+void receiveData(int byteCount) {
+  if (byteCount < 10){
+    return;
+  }
+  if (robotState == TO_NET) { // If already moving to net, ignore new data
+    return;
+  }
+  
+  int target = Wire.read();
+  int score  = Wire.read();
+  
+  int x = (Wire.read() << 8) | Wire.read();
+  int y = (Wire.read() << 8) | Wire.read();
+  int w = (Wire.read() << 8) | Wire.read();
+  int h = (Wire.read() << 8) | Wire.read();
 
-
+  // int midX = x + (w / 2); // vi ska testa  om detta är the case eller om x redan returneras som mittpunkt från ESP32
+  Serial.print("Ball detected in arena @ X = ");
+  Serial.println(x);
+  Serial.print("Ball detected in arena with width = ");
+  Serial.println(w);
+  if(w>90){
+    robotState = FORWARD;
+  }
+  else if (x <= w) {
+    robotState = LEFT;
+  } else if (x >= 240-w) {
+    robotState = RIGHT;
+  } else if(x >w && x < 240-w){
+    if (!ballInBucket()) {
+      robotState = FORWARD;
+    } else {
+      robotState = STOP;
+    }
+  }
+  lastMoveTime = millis();  // Update last move time
+}
 
 void setup() {
   Serial.begin(9600);  
@@ -333,8 +335,8 @@ void setup() {
   pinMode(A5, INPUT);  // Set pin A5 as input
   Wire.begin(ARDUINO_ADDRESS);  // Join I2C bus as slave
   Wire.onReceive(receiveData);   // Set function to handle received data
-  pinMode(rightTrigPin, OUTPUT);  
-	pinMode(rightEchoPin, INPUT);
+  // pinMode(rightTrigPin, OUTPUT);  //Används inte längre
+	// pinMode(rightEchoPin, INPUT);
   pinMode(backTrigPin, OUTPUT);  
 	pinMode(backEchoPin, INPUT);
 	pinMode(bucketEchoPin, INPUT);
@@ -355,11 +357,11 @@ void loop() {
 // }
 
 
-
   if(distanceTrig(bucketTrigPin, bucketEchoPin, 15, 14)){ //Boll i skopa
     Serial.println("Ball detected in bucket.");
     robotState = TO_NET;
   }
+  robotState = TO_NET;
 
   switch (robotState) {
     case FORWARD:
