@@ -238,18 +238,40 @@ void receiveData(int byteCount) {
   lastMoveTime = millis();  // Update last move time
 }
 
+boolean distanceTrig(int trigPin, int echoPin, int nbrOfHits, float threshold){
+  int hitStreak = 0;
+  for(int i = 0; i < nbrOfHits; i++){
+    float dist = getInstantDistance(trigPin, echoPin);
+    Serial.println(dist);
+    if(dist < threshold && dist > 0.1){//Anta att värden < 0,1 är felaktiga
+      hitStreak ++;
+    }
+  }
+
+  if (hitStreak == nbrOfHits){
+    return true;
+  }
+  return false;
+} 
+
 void moveToNet2(){
-  float rightDistance = getInstantDistance(rightTrigPin, rightEchoPin);
-  float backDistance = getInstantDistance(backTrigPin, backEchoPin);
+  boolean backDistance = distanceTrig(backTrigPin, backEchoPin, 10, 5);
   setBucketHeight("MID"); //Bucket in transport mode 
-while(backDistance>5){
-    turnRight(stepTime);
+
+  while(!backDistance){//While not at net, randomly JUMP AROUND
+    Serial.print("backdistance = " );
+    Serial.println(getInstantDistance(backTrigPin, backEchoPin));
+ 
     moveBackward(2000);
+    moveForward(300);
+    backDistance = distanceTrig(backTrigPin, backEchoPin, 10, 5);
 }
 robotState = DUMP;
+}
+
 
   
-}
+
 void moveToNet(){
   setBucketHeight("MID"); //Bucket in transport mode 
   
@@ -304,21 +326,6 @@ void moveToNet(){
 
 
 
-boolean distanceTrig(int trigPin, int echoPin, int nbrOfHits, float threshold){
-  int hitStreak = 0;
-  for(int i = 0; i < nbrOfHits; i++){
-    float dist = getInstantDistance(trigPin, echoPin);
-    Serial.println(dist);
-    if(dist < threshold && dist > 0.1){//Anta att värden < 0,1 är felaktiga
-      hitStreak ++;
-    }
-  }
-
-  if (hitStreak == nbrOfHits){
-    return true;
-  }
-  return false;
-} 
 
 void setup() {
   Serial.begin(9600);  
