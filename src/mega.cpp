@@ -38,7 +38,8 @@ const int moveTime = 100;
 const int turnTime = 100;       
 const int stepTime = 100;
 const int stopTime = 400; 
-const int motorSpeed = 200;
+const int motorSpeedMove = 150;
+const int motorSpeedTurn = 200;
 
 const int wallBox = 150; // Threshold for wall detection
 const int hitThreshold = 10; // Threshold for ball detection in bucket
@@ -53,6 +54,7 @@ int hits = 0;
 unsigned long startTime = 0;
 unsigned long lastMoveTime = 0;
 const unsigned long moveDuration = 500; // time per action in ms
+bool virgin = true; //fräckis
 
 
 // Declare robot state and timing variables
@@ -72,7 +74,7 @@ void moveToNet();
 void setBucketHeight(String height);
 boolean ballInBucket();
 float getInstantDistance(int trigPin, int echoPin);
-
+void(* resetFunc) (void) = 0; //ACSHUALLY
 
 
 //Functions
@@ -84,7 +86,7 @@ void lightOff() {
     digitalWrite(ledPin, LOW);  
 }
 
-void turnRight(int duration) {
+void turnRight(int duration, int motorSpeed) {
   delay(duration);
   digitalWrite(BRAKE_A, LOW);    
   digitalWrite(BRAKE_B, LOW);
@@ -96,7 +98,7 @@ void turnRight(int duration) {
   stop(stopTime);
 }
 
-void moveBackward(int duration) {
+void moveBackward(int duration, int motorSpeed) {
   digitalWrite(BRAKE_A, LOW);
   digitalWrite(BRAKE_B, LOW);
   digitalWrite(DIR_A, HIGH);     
@@ -106,7 +108,7 @@ void moveBackward(int duration) {
   delay(duration);
 }
 
-void moveForward(int duration) {
+void moveForward(int duration, int motorSpeed) {
   digitalWrite(BRAKE_A, LOW);    
   digitalWrite(BRAKE_B, LOW);
   digitalWrite(DIR_A, LOW);    
@@ -116,7 +118,7 @@ void moveForward(int duration) {
   delay(duration);    
 } 
 
-void turnLeft(int duration) {
+void turnLeft(int duration, int motorSpeed) {
   delay(duration);
   digitalWrite(BRAKE_A, LOW);    
   digitalWrite(BRAKE_B, LOW);
@@ -155,7 +157,7 @@ float getInstantDistance(int trigPin, int echoPin) {
 }
 
 void search(int duration) {
-  turnRight(stepTime); 
+  turnRight(stepTime, motorSpeedTurn); 
 }
 
 void setBucketHeight(String height){
@@ -227,15 +229,15 @@ boolean distanceTrig(int trigPin, int echoPin, int nbrOfHits, float threshold){
   return false;
 } 
 
-void moveToNet2(){
+void moveToNet(){
   boolean closeToWall = distanceTrig(backTrigPin, backEchoPin, backTrigstreak, backShortDistance);
-  // setBucketHeight("MID"); //Bucket in transport mode 
+  setBucketHeight("MID"); //Bucket in transport mode 
   
   while(!closeToWall){//While not at net, randomly JUMP AROUND
     Serial.print("backdistance = " );
     Serial.println(getInstantDistance(backTrigPin, backEchoPin));
     
-    moveBackward(300);
+    moveBackward(500);
     stop(stopTime);
     if (distanceTrig(backTrigPin, backEchoPin, backTrigstreak, backLongDistance)){  //Trig vid alla väggar
       moveBackward(stepTime);
@@ -247,58 +249,6 @@ void moveToNet2(){
 
     }
     closeToWall = distanceTrig(backTrigPin, backEchoPin, backTrigstreak, backShortDistance);
-  }
-}
-
-void moveToNet(){
-  setBucketHeight("MID"); //Bucket in transport mode 
-  
-  float rightDistance = getInstantDistance(rightTrigPin, rightEchoPin);
-  float closeToWall = getInstantDistance(backTrigPin, backEchoPin);
-  Serial.print("rightDistance = " );
-  Serial.println(rightDistance);
-  float shortDistance = 3;
-  float midDistance = 8; //Beror på pinnens längd
-  while(closeToWall > shortDistance){
-    
-    if(closeToWall > midDistance && rightDistance > midDistance){ //CASE 1: Center of arena (Find wall to begin traversing)
-      Serial.println("case 1");
-      moveBackward(stepTime);
-    }
-    else if(closeToWall < midDistance && closeToWall > shortDistance && rightDistance > midDistance){ //CASE 2: Back at wall, not parallell to wall (rotate until parallell)
-      Serial.println("case 2");
-      moveBackward(stepTime/2);
-      closeToWall = getInstantDistance(backTrigPin, backEchoPin);
-      if (closeToWall < shortDistance){
-        break;
-      }
-      moveForward(stepTime);
-      while (rightDistance > midDistance){
-        rightDistance = getInstantDistance(rightTrigPin, rightEchoPin);
-        turnRight(stepTime*2);
-      }
-    }
-    else if(closeToWall > midDistance && rightDistance < midDistance){ //CASE 2,5: Back at wall, parallell to wall (Move along wall)
-      Serial.println("case 2.5");
-      if (rightDistance < 2*shortDistance){
-        turnRight(stepTime*2);
-        // continue;
-      }
-      moveBackward(stepTime);
-    }
-    else if(closeToWall < midDistance && closeToWall > shortDistance && rightDistance < midDistance){ //CASE 3: Corner (Rotate until parallell again)
-      Serial.println("case 3");
-      turnRight(stepTime);
-    }
-    else{
-      Serial.println("case 4");
-      Serial.println("Net found.");
-      robotState = DUMP;
-    }
-    
-    rightDistance = getInstantDistance(rightTrigPin, rightEchoPin);
-    closeToWall = getInstantDistance(backTrigPin, backEchoPin);
-    delay(stepTime);
   }
 }
 
@@ -352,6 +302,10 @@ void receiveData(int byteCount) {
 }
 
 void setup() {
+  if (virgin) {
+    moveForward(stepTime);//stoppa in den
+    virgin = false;
+  }
   Serial.begin(9600);  
   Serial.println("STARTING SETUP");
   pinMode(A5, INPUT);  // Set pin A5 as input
@@ -405,18 +359,21 @@ void loop() {
       break;
       case TO_NET:
       Serial.println("Moving to net...");
-      moveToNet2(); //denna måste köras klart
+      moveToNet(); //denna måste köras klart
       robotState = DUMP;
       break;
       case DUMP:
       Serial.println("DUMPING");
       stop(stopTime);
-      // setBucketHeight("MID");
-      // setBucketHeight("HI");
-      // setBucketHeight("LOW");
+      setBucketHeight("MID");
+      setBucketHeight("HI");
+      setBucketHeight("LOW");
       delay(500);
       moveForward(1000);
-      robotState = SEARCH;
+      // virgin = false;
+      resetFunc();
+
+      //robotState = SEARCH;
       break;
     case IDLE:
       break;
