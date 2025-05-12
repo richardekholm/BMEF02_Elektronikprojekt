@@ -86,46 +86,46 @@ void lightOff() {
     digitalWrite(ledPin, LOW);  
 }
 
-void turnRight(int duration, int motorSpeed) {
+void turnRight(int duration) {
   delay(duration);
   digitalWrite(BRAKE_A, LOW);    
   digitalWrite(BRAKE_B, LOW);
   digitalWrite(DIR_A, HIGH);    
   digitalWrite(DIR_B, LOW);    
-  analogWrite(PWM_A, motorSpeed);
-  analogWrite(PWM_B, motorSpeed);
+  analogWrite(PWM_A, motorSpeedTurn);
+  analogWrite(PWM_B, motorSpeedTurn);
   delay(duration);
   stop(stopTime);
 }
 
-void moveBackward(int duration, int motorSpeed) {
+void moveBackward(int duration) {
   digitalWrite(BRAKE_A, LOW);
   digitalWrite(BRAKE_B, LOW);
   digitalWrite(DIR_A, HIGH);     
   digitalWrite(DIR_B, HIGH);     
-  analogWrite(PWM_A, motorSpeed);
-  analogWrite(PWM_B, motorSpeed);
+  analogWrite(PWM_A, motorSpeedMove);
+  analogWrite(PWM_B, motorSpeedMove);
   delay(duration);
 }
 
-void moveForward(int duration, int motorSpeed) {
+void moveForward(int duration) {
   digitalWrite(BRAKE_A, LOW);    
   digitalWrite(BRAKE_B, LOW);
   digitalWrite(DIR_A, LOW);    
   digitalWrite(DIR_B, LOW);     
-  analogWrite(PWM_A, motorSpeed);
-  analogWrite(PWM_B, motorSpeed);
+  analogWrite(PWM_A, motorSpeedMove);
+  analogWrite(PWM_B, motorSpeedMove);
   delay(duration);    
 } 
 
-void turnLeft(int duration, int motorSpeed) {
+void turnLeft(int duration) {
   delay(duration);
   digitalWrite(BRAKE_A, LOW);    
   digitalWrite(BRAKE_B, LOW);
   digitalWrite(DIR_A, LOW);     
   digitalWrite(DIR_B, HIGH);    
-  analogWrite(PWM_A, motorSpeed);
-  analogWrite(PWM_B, motorSpeed);
+  analogWrite(PWM_A, motorSpeedTurn);
+  analogWrite(PWM_B, motorSpeedTurn);
   delay(duration);
   stop(stopTime);
 }
@@ -157,14 +157,14 @@ float getInstantDistance(int trigPin, int echoPin) {
 }
 
 void search(int duration) {
-  turnRight(stepTime, motorSpeedTurn); 
+  turnRight(stepTime); 
 }
 
 void setBucketHeight(String height){
   if(height == "LOW"){
     servoA.write(110);    // Move to 0 degrees
     servoB.write(10);     // Move to 0 degrees
-    Serial.println("Moving bucket to 10 degrees");
+    Serial.println("Moving bucket to 0 degrees");
     delay(1000); //alltså sänka denna?
   }
   else if(height == "MID"){
@@ -179,10 +179,10 @@ void setBucketHeight(String height){
     Serial.println("Moving bucket to 90 degrees");
     delay(1000);
   }
-  else if (height == "JUST ABOVE"){
+  else if (height == "JUST ABOVE"){ // denna kanske är sketchy men tror ej de
     servoA.write(107);     // Move to 90 degrees
     servoB.write(13);     // Move to 90 degrees
-    Serial.println("Moving bucket to 90 degrees");
+    Serial.println("Moving bucket to 5 degrees");
     delay(1000);
   }
   else{
