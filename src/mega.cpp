@@ -74,7 +74,7 @@ void moveToNet();
 void setBucketHeight(String height);
 boolean isStuck();
 float getInstantDistance(int trigPin, int echoPin);
-void(* resetFunc) (void) = 0; //ACSHUALLY
+void(* resetFunc) (void) = 0;
 boolean backUpStraight();
 boolean distanceTrig(int trigPin, int echoPin, int nbrOfHits, float threshold);
 
@@ -250,7 +250,7 @@ boolean distanceTrig(int trigPin, int echoPin, int nbrOfHits, float threshold){
   int hitStreak = 0;
   for(int i = 0; i < nbrOfHits; i++){
     float dist = getInstantDistance(trigPin, echoPin);
-    Serial.println(dist);
+    //Serial.println(dist);
     // Serial.print(", ");
     if(dist < threshold && dist > 0.1){//Anta att värden < 0,1 är felaktiga
       hitStreak ++;
@@ -371,11 +371,7 @@ void setup() {
 
 
 void loop() {
-  while(true){
-    robotState = TO_NET;
-  boolean bus = backUpStraight();
-  while(!bus);
-  }
+
   
   if(distanceTrig(bucketTrigPin, bucketEchoPin, hitThreshold, bucketDistance)){ //Boll i skopa
     Serial.println("Ball detected in bucket.");
