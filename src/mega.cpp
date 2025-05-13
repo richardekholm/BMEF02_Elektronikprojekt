@@ -310,7 +310,7 @@ void receiveData(int byteCount) {
     return;
   }
   
-  int target = Wire.read();
+  int target = Wire.read();//att vi måste kasta dessa 2 värden kommer 
   int score  = Wire.read();
   
   int x = (Wire.read() << 8) | Wire.read();
@@ -427,5 +427,3 @@ void loop() {
       break;
 }
 }
-
-
