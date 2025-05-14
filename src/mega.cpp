@@ -38,7 +38,7 @@ const int moveTime = 100;
 const int turnTime = 100;       
 const int stepTime = 100;
 const int stopTime = 400; 
-const int motorSpeedMove = 150;
+const int motorSpeedMove = 130;
 const int motorSpeedTurn = 200;
 
 const int wallBox = 150; // Threshold for wall detection
@@ -203,8 +203,8 @@ void setBucketHeight(String height){
     delay(1000); //alltså sänka denna?
   }
   else if(height == "MID"){
-    servoA.write(60);     // Move to 55 degrees
-    servoB.write(70);     // Move to 55 degrees
+    servoA.write(65);     // Move to 55 degrees
+    servoB.write(65);     // Move to 55 degrees
     Serial.println("Moving bucket to 55 degrees");
     delay(1000);
   }
@@ -366,11 +366,11 @@ void receiveData(int byteCount) {
   if(w > 90){
     robotState = FORWARD; // lägga in en bailout här??
       
-  } else if (x <= w) {
+  } else if (x <= w*1.1) {
       robotState = LEFT;
-  } else if (x >= 240-w) {
+  } else if (x >= 240-(w*1.1)) {
       robotState = RIGHT;
-  } else if(x >w && x < 240-w){
+  } else if(x >w && x < 240-(w*1.1)){
       robotState = FORWARD;
   } else {
       robotState = SEARCH;
