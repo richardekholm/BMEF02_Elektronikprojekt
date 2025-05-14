@@ -156,9 +156,6 @@ float getInstantDistance(int trigPin, int echoPin) {
 
   // measure time
   unsigned long duration = pulseIn(echoPin, HIGH);
-  if (duration == 0 || duration > 25000) {
-    // return -1.0f;     // signal “bad reading”    Tog bort för den kan trigga conditions
-  }
   // convert to cm
   return (duration * 0.0343f) / 2.0f;
 }
@@ -200,7 +197,7 @@ boolean backUpStraight(){
 
 void setBucketHeight(String height){
   if(height == "LOW"){
-    servoA.write(113);    // Move to 0 degrees
+    servoA.write(112);    // Move to 0 degrees
     servoB.write(10);     // Move to 0 degrees
     Serial.println("Moving bucket to 0 degrees");
     delay(1000); //alltså sänka denna?
@@ -227,8 +224,6 @@ void setBucketHeight(String height){
     Serial.println("Invalid height");
   }
 }
-
-
 
 boolean isStuck(){
   float dis = getInstantDistance(backLeftTrigPin, backLeftEchoPin);
@@ -261,8 +256,6 @@ boolean distanceTrig(int trigPin, int echoPin, int nbrOfHits, float threshold){
   int hitStreak = 0;
   for(int i = 0; i < nbrOfHits; i++){
     float dist = getInstantDistance(trigPin, echoPin);
-    //Serial.println(dist);
-    // Serial.print(", ");
     if(dist < threshold && dist > 1){//Anta att värden < 0,1 är felaktiga
       hitStreak ++;
     }
@@ -274,7 +267,6 @@ boolean distanceTrig(int trigPin, int echoPin, int nbrOfHits, float threshold){
   }
   return false;
 } 
-
 
 void moveForwardWithChecks(int totalTime) {
   int stepTime = 100; // ms
@@ -315,16 +307,7 @@ void turnRightWithChecks(int totalTime) {
   }
 }
 
-
-
-
 void moveToNet() {
-  // digitalWrite(BRAKE_A, LOW);
-  // digitalWrite(BRAKE_B, LOW);
-  // digitalWrite(DIR_A, HIGH);
-  // digitalWrite(DIR_B, HIGH);
-  // analogWrite(PWM_A, 120);
-  // analogWrite(PWM_B, 120);
   setBucketHeight("MID");
   moveBackward(2000);
   while (true) {
@@ -355,33 +338,11 @@ bool checkBackSensors() {
   return left || right;
 }
 
-  // boolean closeToWall = distanceTrig(backTrigPin, backEchoPin, backTrigstreak, backShortDistance);
-  // setBucketHeight("MID"); //Bucket in transport mode 
-  
-  // while(!closeToWall){//While not at net, randomly JUMP AROUND
-  //   Serial.print("backdistance = " );
-  //   Serial.println(getInstantDistance(backTrigPin, backEchoPin));
-    
-  //   moveBackward(500);
-  //   stop(stopTime);
-  //   if (distanceTrig(backTrigPin, backEchoPin, backTrigstreak, backLongDistance)){  //Trig vid alla väggar
-  //     moveBackward(stepTime);
-  //     if (distanceTrig(backTrigPin, backEchoPin, backTrigstreak, backShortDistance)){  //Vid nät
-  //       break;
-  //     }
-  //     moveForward(stepTime);
-  //     turnRight(stepTime);
-
-  //   }
-  //   closeToWall = distanceTrig(backTrigPin, backEchoPin, backTrigstreak, backShortDistance);
-  // }
-
-
 void receiveData(int byteCount) {
   if (byteCount < 10){  
     return;
   }
-  if (robotState == TO_NET || robotState == DUMP) { // If already moving to net, ignore new data
+  if (robotState == TO_NET || robotState == DUMP) { // If already moving to net, ignore newmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm g data
     return;
   }
   
@@ -410,9 +371,7 @@ void receiveData(int byteCount) {
   } else if (x >= 240-w) {
       robotState = RIGHT;
   } else if(x >w && x < 240-w){
-    // if (!distanceTrig(bucketTrigPin, bucketEchoPin, 20, 14)) {
       robotState = FORWARD;
-      // }
   } else {
       robotState = SEARCH;
   }
@@ -427,7 +386,6 @@ void checkTimeout(RobotState lastRobotState, RobotState robotState){
     Serial.println(" times.");
     if (repeatCount >= repeatThreshold) {
       Serial.println("State repeated too many times. Bailing out TrAV...");
-      //robotState = SEARCH;
       bailout();
       repeatCount = 0; // reset after forcing SEARCH
     }
@@ -440,6 +398,7 @@ void checkTimeout(RobotState lastRobotState, RobotState robotState){
 
 void setup() {
   if (virgin) {
+    delay(1000);
     moveForward(stepTime);//stoppa in den
     virgin = false;
   }
@@ -449,8 +408,6 @@ void setup() {
   pinMode(A5, INPUT);  // Set pin A5 as input
   Wire.begin(ARDUINO_ADDRESS);  // Join I2C bus as slave
   Wire.onReceive(receiveData);   // Set function to handle received data
-  // pinMode(rightTrigPin, OUTPUT);  //Används inte längre
-	// pinMode(rightEchoPin, INPUT);
   pinMode(backLeftTrigPin, OUTPUT);  
 	pinMode(backLeftEchoPin, INPUT);
   pinMode(backRightTrigPin, OUTPUT);  
@@ -470,8 +427,8 @@ void loop() {
   
   checkTimeout(lastRobotState, robotState);
   lastRobotState = robotState;
-  
-  if(distanceTrig(bucketTrigPin, bucketEchoPin, 5, bucketDistance)){ //Boll i skopa
+  bool ballInBucket = distanceTrig(bucketTrigPin, bucketEchoPin, 5, bucketDistance);
+  if(ballInBucket && robotState != DUMP){ //Boll i skopa
     Serial.println("Ball detected in bucket.");
     setBucketHeight("MID");
     robotState = TO_NET;
@@ -479,13 +436,13 @@ void loop() {
   
   switch (robotState) {
     case FORWARD:
-    Serial.println("Moving forward");
-    moveForward(moveTime); 
-    break;
+      Serial.println("Moving forward");
+      moveForward(moveTime); 
+      break;
     case BACKWARD:
-    Serial.println("Moving backward");
-    moveBackward(moveTime); 
-    break;
+      Serial.println("Moving backward");
+      moveBackward(moveTime); 
+      break;
     case LEFT:
       Serial.println("Turning left");
       turnLeft(stepTime); 
@@ -494,23 +451,21 @@ void loop() {
       Serial.println("Turning right");
       turnRight(stepTime); 
       break;
-      case STOP:
+    case STOP:
       Serial.println("Stopping motors");
       stop(stopTime);
       break;
-      case SEARCH:
-     
+    case SEARCH:
       Serial.println("Searching...");
       search(stepTime);
-      
       default:
       break;
-      case TO_NET:
+    case TO_NET:
       Serial.println("Moving to net...");
       moveToNet(); //denna måste köras klart
       robotState = DUMP;
       break;
-      case DUMP:
+    case DUMP:
       Serial.println("DUMPING");
       stop(stopTime);
       setBucketHeight("MID");
@@ -518,10 +473,7 @@ void loop() {
       setBucketHeight("LOW");
       delay(200);
       moveForward(moveTime/5);
-      // virgin = false;
       resetFunc();
-
-      //robotState = SEARCH;
       break;
     case IDLE:
       break;
