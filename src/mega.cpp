@@ -41,13 +41,15 @@ const int stopTime = 400;
 const int motorSpeedMove = 150;
 const int motorSpeedTurn = 200;
 
-const int wallBox = 160; // Threshold for wall detection
-const int hitThreshold = 10; // Threshold for ball detection in bucket
-const float bucketDistance = 15.0f; // distance to detect ball in bucket
+const int wallBox = 150; // Threshold for wall detection
+const int hitThreshold = 5; // Threshold for ball detection in bucket
+const int bucketDistance = 12; // distance to detect ball in bucket
 const int backTrigstreak = 5; // Number of triggers to detect wall
-const float backShortDistance = 8.0f; // Number of triggers to detect ball in bucket
-const float backLongDistance = 30.0f; // Number of triggers to detect ball in bucket
+const int backShortDistance = 7; // Number of triggers to detect ball in bucket
+const int backLongDistance = 10; // Number of triggers to detect ball in bucket
 
+const int repeatThreshold = 20; //20 repeat actions trigger bailout
+int repeatCount = 0;
 
 
 int hits = 0;
@@ -59,7 +61,8 @@ bool virgin = true; //fräckis
 
 // Declare robot state and timing variables
 enum RobotState {IDLE, FORWARD, LEFT, RIGHT, STOP, BACKWARD, SEARCH, TEST, TO_NET, DUMP};
-RobotState robotState = IDLE;
+RobotState robotState;
+RobotState lastRobotState;
 
 //Function declarations
 void moveForward(int duration);
@@ -72,12 +75,13 @@ void test(int duration);
 void search(int duration);
 void moveToNet();
 void setBucketHeight(String height);
-boolean isStuck();
+bool isStuck();
 float getInstantDistance(int trigPin, int echoPin);
 void(* resetFunc) (void) = 0;
-boolean backUpStraight();
-boolean distanceTrig(int trigPin, int echoPin, int nbrOfHits, float threshold);
-void dumpMotion();
+bool backUpStraight();
+bool distanceTrig(int trigPin, int echoPin, int nbrOfHits, float threshold);
+bool checkBackSensors();
+void bailout();
 
 
 //Functions
@@ -106,7 +110,7 @@ void moveBackward(int duration) {
   digitalWrite(BRAKE_B, LOW);
   digitalWrite(DIR_A, HIGH);     
   digitalWrite(DIR_B, HIGH);     
-  analogWrite(PWM_A, motorSpeedMove);
+  analogWrite(PWM_A, motorSpeedMove*0.83);
   analogWrite(PWM_B, motorSpeedMove);
   delay(duration);
 }
@@ -160,52 +164,38 @@ float getInstantDistance(int trigPin, int echoPin) {
 }
 
 void search(int duration) {
-  turnRight(stepTime);
+turnRight(stepTime*1.2);
 }
 
 boolean backUpStraight(){
-  boolean isLeftClose = distanceTrig(backLeftTrigPin, backLeftEchoPin, backTrigstreak, backLongDistance);
-  boolean isRightClose = distanceTrig(backRightTrigPin, backRightEchoPin, backTrigstreak, backLongDistance);
-  while (!isLeftClose && !isRightClose){ // Långt ifrån väggen, back up
+  boolean isLeftClose = distanceTrig(backLeftTrigPin, backLeftEchoPin, backTrigstreak, 30);
+  boolean isRightClose = distanceTrig(backRightTrigPin, backRightEchoPin, backTrigstreak, 30);
+  while(!isLeftClose && !isRightClose){//Långt ifrån väggen, back up
     moveBackward(moveTime);
     Serial.println("Not close to wall");
-    isLeftClose = distanceTrig(backLeftTrigPin, backLeftEchoPin, backTrigstreak, backLongDistance);
-    isRightClose = distanceTrig(backRightTrigPin, backRightEchoPin, backTrigstreak, backLongDistance);
+    isLeftClose = distanceTrig(backLeftTrigPin, backLeftEchoPin, backTrigstreak, 30);
+    isRightClose = distanceTrig(backRightTrigPin, backRightEchoPin, backTrigstreak, 30);
   }
-  // isLeftClose = distanceTrig(backLeftTrigPin, backLeftEchoPin, backTrigstreak, backShortDistance);
-  // isRightClose = distanceTrig(backRightTrigPin, backRightEchoPin, backTrigstreak, backShortDistance);
-  isLeftClose = false;
-  isRightClose = false;
-  while(isLeftClose == false && isRightClose == false){
+  isLeftClose = distanceTrig(backLeftTrigPin, backLeftEchoPin, backTrigstreak, 10);
+  isRightClose = distanceTrig(backRightTrigPin, backRightEchoPin, backTrigstreak, 10);
+  while(isLeftClose != isRightClose){
     if(isLeftClose && !isRightClose){
       Serial.println("rotating left");
-      moveForward(stepTime/2);
       turnLeft(stepTime);
-      moveBackward(stepTime);
-      isLeftClose = distanceTrig(backLeftTrigPin, backLeftEchoPin, backTrigstreak, backShortDistance);
-      Serial.print("isLeftClose = ");
-      Serial.println(isLeftClose);
-      isRightClose = distanceTrig(backRightTrigPin, backRightEchoPin, backTrigstreak, backShortDistance);
-      Serial.print("isRightClose = ");
-      Serial.println(isRightClose);
+      isLeftClose = distanceTrig(backLeftTrigPin, backLeftEchoPin, backTrigstreak, 10);
+      isRightClose = distanceTrig(backRightTrigPin, backRightEchoPin, backTrigstreak, 10);
     }
-    else{
+    else if(!isLeftClose && isRightClose){
       Serial.println("rotating right");
-      moveForward(stepTime/2);
       turnRight(stepTime);
-      moveBackward(stepTime);
-      isLeftClose = distanceTrig(backLeftTrigPin, backLeftEchoPin, backTrigstreak, backShortDistance);
-      Serial.print("isLeftClose = ");
-      Serial.println(isLeftClose);
-      isRightClose = distanceTrig(backRightTrigPin, backRightEchoPin, backTrigstreak, backShortDistance);
-      Serial.print("isRightClose = ");
-      Serial.println(isRightClose);
+      isLeftClose = distanceTrig(backLeftTrigPin, backLeftEchoPin, backTrigstreak, 10);
+      isRightClose = distanceTrig(backRightTrigPin, backRightEchoPin, backTrigstreak, 10);
     }
   // }
+  Serial.println("backing up straight");
+  moveBackward(moveTime);
+  return true;//isLeftClose && isRightClose
 }
-Serial.println("backing up straight");
-moveBackward(moveTime);
-return true;//isLeftClose && isRightClose
 }
 
 void setBucketHeight(String height){
@@ -216,8 +206,8 @@ void setBucketHeight(String height){
     delay(1000); //alltså sänka denna?
   }
   else if(height == "MID"){
-    servoA.write(55);     // Move to 55 degrees
-    servoB.write(65);     // Move to 55 degrees
+    servoA.write(70);     // Move to 55 degrees
+    servoB.write(50);     // Move to 55 degrees
     Serial.println("Moving bucket to 55 degrees");
     delay(1000);
   }
@@ -238,12 +228,14 @@ void setBucketHeight(String height){
   }
 }
 
+
+
 boolean isStuck(){
   float dis = getInstantDistance(backLeftTrigPin, backLeftEchoPin);
   //Serial.println(dis);
   
   if (dis > 280){
-    hits++;
+     hits++;
    }
 
    unsigned long now = millis();
@@ -258,59 +250,83 @@ boolean isStuck(){
    return false;
 }
 
+void bailout(){
+  moveBackward(8 * stepTime);
+  turnRight(4 * turnTime);
+  moveForward(4 * stepTime);
+}
+
+
 boolean distanceTrig(int trigPin, int echoPin, int nbrOfHits, float threshold){
   int hitStreak = 0;
-  // Serial.print("threshold on function call = ");
-  // Serial.println(threshold);
   for(int i = 0; i < nbrOfHits; i++){
-    
-    // Serial.print("threshold in loop = ");
-    // Serial.println(threshold);
-    
-    // Serial.print("hitStreak = ");
-    // Serial.println(hitStreak);
-    
     float dist = getInstantDistance(trigPin, echoPin);
-    Serial.println(dist);
-    // if (dist > 0.1){
-    //   i--;
-    //   continue;
-    // }
-    if(dist < threshold){//
+    //Serial.println(dist);
+    // Serial.print(", ");
+    if(dist < threshold && dist > 1){//Anta att värden < 0,1 är felaktiga
       hitStreak ++;
     }
   }
   Serial.println("");
-  // Serial.print("nbrOfHits = ");
-  // Serial.println(nbrOfHits);
-  // Serial.print("threshold = ");
-  // Serial.println(threshold);
-  if (hitStreak >= nbrOfHits){
+  
+  if (hitStreak == nbrOfHits){
     return true;
   }
   return false;
 } 
 
-void moveToNet(){
-  boolean backLeftClose = distanceTrig(backLeftTrigPin, backLeftEchoPin, backTrigstreak, backShortDistance);
-  boolean backRightClose = distanceTrig(backRightTrigPin, backRightEchoPin, backTrigstreak, backShortDistance);
-  // setBucketHeight("MID"); //Bucket in transport mode 
-  while(!backLeftClose && !backRightClose){
-   
-    backUpStraight();
-    backLeftClose = distanceTrig(backLeftTrigPin, backLeftEchoPin, backTrigstreak, backShortDistance);
-    backRightClose = distanceTrig(backRightTrigPin, backRightEchoPin, backTrigstreak, backShortDistance);
-    if (backLeftClose || backRightClose){ 
+
+void moveForwardWithChecks(int totalTime) {
+  int stepTime = 100; // ms
+  int elapsed = 0;
+  while (elapsed < totalTime) {
+    moveForward(stepTime);
+    if (checkBackSensors()) {
+      robotState = DUMP;
       return;
     }
-    else{
-      moveForward(stepTime*2);
-      turnRight(turnTime*1.5);
-    }
+    elapsed += stepTime;
   }
+}
 
+void moveBackwardWithChecks(int totalTime) {
+  int stepTime = 100; // ms
+  int elapsed = 0;
+  while (elapsed < totalTime) {
+    moveBackward(stepTime);
+    if (checkBackSensors()) {
+      robotState = DUMP;
+      return;
+    }
+    elapsed += stepTime;
+  }
+}
+
+void turnRightWithChecks(int totalTime) {
+  int stepTime = 100; // ms
+  int elapsed = 0;
+  while (elapsed < totalTime) {
+    turnRight(stepTime);
+    if (checkBackSensors()) {
+      robotState = DUMP;
+      return;
+    }
+    elapsed += stepTime;
+  }
+}
+
+
+
+
+void moveToNet() {
+  // digitalWrite(BRAKE_A, LOW);
+  // digitalWrite(BRAKE_B, LOW);
+  // digitalWrite(DIR_A, HIGH);
+  // digitalWrite(DIR_B, HIGH);
+  // analogWrite(PWM_A, 120);
+  // analogWrite(PWM_B, 120);
   setBucketHeight("MID");
-
+  moveBackward(2000);
   while (true) {
     if (checkBackSensors()) {
       robotState = DUMP;
@@ -318,27 +334,29 @@ void moveToNet(){
     }
 
     // Instead of large moves, break them up into short steps and check often
-    moveForward(200);  // short movement
-    if (checkBackSensors()) { robotState = DUMP; return; }
+    moveForward(700);  // short movement
 
-    turnRight(100);    // shorter turn
-    if (checkBackSensors()) { robotState = DUMP; return; }
+    if (checkBackSensors()) {return;}
 
-    moveBackward(500); // short backward move
-    if (checkBackSensors()) { robotState = DUMP; return; }
+    turnRight(270);    // shorter turn
+    if (checkBackSensors()) {return;}
+
+    moveBackward(4000); // short backward move
+    if (checkBackSensors()) {return;}
   }
 }
 
 // Helper function for checking back sensors
 bool checkBackSensors() {
-  bool left = distanceTrig(backLeftTrigPin, backLeftEchoPin, backTrigstreak, backShortDistance);
-  bool right = distanceTrig(backRightTrigPin, backRightEchoPin, backTrigstreak, backShortDistance);
+  bool left = distanceTrig(backLeftTrigPin, backLeftEchoPin, 1, backShortDistance);
+  bool right = distanceTrig(backRightTrigPin, backRightEchoPin, 1, backShortDistance);
   Serial.print("leftClose = "); Serial.println(left);
   Serial.print("rightClose = "); Serial.println(right);
   return left || right;
 }
 
   // boolean closeToWall = distanceTrig(backTrigPin, backEchoPin, backTrigstreak, backShortDistance);
+  // setBucketHeight("MID"); //Bucket in transport mode 
   
   // while(!closeToWall){//While not at net, randomly JUMP AROUND
   //   Serial.print("backdistance = " );
@@ -376,51 +394,63 @@ void receiveData(int byteCount) {
   int h = (Wire.read() << 8) | Wire.read();
   
   if (w >= wallBox){
-    moveBackward(stepTime);Serial.println("Wall seen");
+    moveBackward(stepTime);
     robotState = SEARCH;
     return;
   }
-  // Serial.print("Ball detected in arena @ X = ");
-  // Serial.println(x);
-  // Serial.print("Ball detected in arena with width = ");
-  // Serial.println(w);
+  Serial.print("Ball detected in arena @ X = ");
+  Serial.println(x);
+  Serial.print("Ball detected in arena with width = ");
+  Serial.println(w);
   if(w > 90){
-      robotState = FORWARD;
+    robotState = FORWARD; // lägga in en bailout här??
+      
   } else if (x <= w) {
       robotState = LEFT;
   } else if (x >= 240-w) {
       robotState = RIGHT;
   } else if(x >w && x < 240-w){
-    boolean isItIn = distanceTrig(bucketTrigPin, bucketEchoPin, hitThreshold, bucketDistance);
-    while(!isItIn){
+    // if (!distanceTrig(bucketTrigPin, bucketEchoPin, 20, 14)) {
       robotState = FORWARD;
-      }
+      // }
   } else {
-      startTime = millis();
       robotState = SEARCH;
   }
 }
 
-void dumpMotion(){
-  setBucketHeight("MID");
-  setBucketHeight("HI");
-  setBucketHeight("LOW");
-  return;
+void checkTimeout(RobotState lastRobotState, RobotState robotState){
+  // Timeout detection logic
+  if (robotState == lastRobotState) {
+    repeatCount++;
+    Serial.print("Same state detected the last ");
+    Serial.print(repeatCount);
+    Serial.println(" times.");
+    if (repeatCount >= repeatThreshold) {
+      Serial.println("State repeated too many times. Bailing out TrAV...");
+      //robotState = SEARCH;
+      bailout();
+      repeatCount = 0; // reset after forcing SEARCH
+    }
+  } else {
+    repeatCount = 0; // reset if state changes
+  }
 }
 
+
+
 void setup() {
-  Serial.begin(9600);  
-  Serial.println("STARTING SETUP");
-  
   if (virgin) {
-    setBucketHeight("JUST ABOVE");
     moveForward(stepTime);//stoppa in den
     virgin = false;
   }
 
+  Serial.begin(9600);  
+  Serial.println("STARTING SETUP");
   pinMode(A5, INPUT);  // Set pin A5 as input
   Wire.begin(ARDUINO_ADDRESS);  // Join I2C bus as slave
   Wire.onReceive(receiveData);   // Set function to handle received data
+  // pinMode(rightTrigPin, OUTPUT);  //Används inte längre
+	// pinMode(rightEchoPin, INPUT);
   pinMode(backLeftTrigPin, OUTPUT);  
 	pinMode(backLeftEchoPin, INPUT);
   pinMode(backRightTrigPin, OUTPUT);  
@@ -432,60 +462,68 @@ void setup() {
   setBucketHeight("LOW");
   startTime = millis();
   robotState = SEARCH;
+  lastRobotState = SEARCH;
 }
 
 
 void loop() {
-  boolean ballInBucket = distanceTrig(bucketTrigPin, bucketEchoPin, hitThreshold, bucketDistance);
-  if(ballInBucket && robotState != DUMP){ //Boll i skopa
+  
+  checkTimeout(lastRobotState, robotState);
+  lastRobotState = robotState;
+  
+  if(distanceTrig(bucketTrigPin, bucketEchoPin, 5, bucketDistance)){ //Boll i skopa
     Serial.println("Ball detected in bucket.");
+    setBucketHeight("MID");
     robotState = TO_NET;
   }
-
-  // robotState = TO_NET;
   
   switch (robotState) {
     case FORWARD:
-      Serial.println("Moving forward");
-      moveForward(moveTime); 
-      break;
+    Serial.println("Moving forward");
+    moveForward(moveTime); 
+    break;
     case BACKWARD:
-      Serial.println("Moving backward");
-      moveBackward(moveTime); 
-      break;
+    Serial.println("Moving backward");
+    moveBackward(moveTime); 
+    break;
     case LEFT:
-        Serial.println("Turning left");
-        turnLeft(stepTime); 
-        break;
+      Serial.println("Turning left");
+      turnLeft(stepTime); 
+      break;
     case RIGHT:
-        Serial.println("Turning right");
-        turnRight(stepTime); 
-        break;
-    case STOP:
-        Serial.println("Stopping motors");
-        stop(stopTime);
-        break;
-    case SEARCH:      
+      Serial.println("Turning right");
+      turnRight(stepTime); 
+      break;
+      case STOP:
+      Serial.println("Stopping motors");
+      stop(stopTime);
+      break;
+      case SEARCH:
+     
       Serial.println("Searching...");
       search(stepTime);
+      
       default:
       break;
-    case TO_NET:
+      case TO_NET:
       Serial.println("Moving to net...");
       moveToNet(); //denna måste köras klart
       robotState = DUMP;
       break;
-    case DUMP:
-      Serial.println("Dumping");
+      case DUMP:
+      Serial.println("DUMPING");
       stop(stopTime);
-      dumpMotion();
-      delay(500);
-      moveForward(1000);
+      setBucketHeight("MID");
+      setBucketHeight("HI");
+      setBucketHeight("LOW");
+      delay(200);
+      moveForward(moveTime/5);
+      // virgin = false;
       resetFunc();
-      // robotState = SEARCH;
+
+      //robotState = SEARCH;
       break;
     case IDLE:
-      Serial.println("Idling...");
       break;
 }
 }
