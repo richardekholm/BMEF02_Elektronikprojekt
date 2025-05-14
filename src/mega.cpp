@@ -45,7 +45,7 @@ const int wallBox = 150; // Threshold for wall detection
 const int hitThreshold = 10; // Threshold for ball detection in bucket
 const int bucketDistance = 12; // distance to detect ball in bucket
 const int backTrigstreak = 5; // Number of triggers to detect wall
-const int backShortDistance = 6.5; // Number of triggers to detect ball in bucket
+const int backShortDistance = 8.5; // Number of triggers to detect ball in bucket
 const int backLongDistance = 10; // Number of triggers to detect ball in bucket
 
 
@@ -264,22 +264,59 @@ boolean distanceTrig(int trigPin, int echoPin, int nbrOfHits, float threshold){
   return false;
 } 
 
-void moveToNet(){
-  boolean backLeftClose = distanceTrig(backLeftTrigPin, backLeftEchoPin, backTrigstreak, backShortDistance);
-  boolean backRightClose = distanceTrig(backRightTrigPin, backRightEchoPin, backTrigstreak, backShortDistance);
-  while(!backLeftClose && !backRightClose){
-    backUpStraight();
-    backLeftClose = distanceTrig(backLeftTrigPin, backLeftEchoPin, backTrigstreak, backShortDistance);
-    backRightClose = distanceTrig(backRightTrigPin, backRightEchoPin, backTrigstreak, backShortDistance);
-    if (backLeftClose && backRightClose){
+
+
+
+
+void moveToNet() {
+  digitalWrite(BRAKE_A, LOW);
+  digitalWrite(BRAKE_B, LOW);
+  digitalWrite(DIR_A, HIGH);
+  digitalWrite(DIR_B, HIGH);
+  analogWrite(PWM_A, 120);
+  analogWrite(PWM_B, 120);
+
+  unsigned long startTime = millis();
+  while (millis() - startTime < 1500) {
+    moveForward(300);
+    turnRight(300);
+    moveBackward(3000);
+    // Check sensors while moving backward slowly
+    if (checkBackSensors()) {
       robotState = DUMP;
       return;
     }
-    else{
-      moveForward(stepTime);
-      turnRight(turnTime);
-    }
   }
+
+  setBucketHeight("MID");
+
+  while (true) {
+    if (checkBackSensors()) {
+      robotState = DUMP;
+      return;
+    }
+
+    // Instead of large moves, break them up into short steps and check often
+    moveForward(200);  // short movement
+    if (checkBackSensors()) { robotState = DUMP; return; }
+
+    turnRight(100);    // shorter turn
+    if (checkBackSensors()) { robotState = DUMP; return; }
+
+    moveBackward(500); // short backward move
+    if (checkBackSensors()) { robotState = DUMP; return; }
+  }
+}
+
+// Helper function for checking back sensors
+bool checkBackSensors() {
+  bool left = distanceTrig(backLeftTrigPin, backLeftEchoPin, backTrigstreak, backShortDistance);
+  bool right = distanceTrig(backRightTrigPin, backRightEchoPin, backTrigstreak, backShortDistance);
+  Serial.print("leftClose = "); Serial.println(left);
+  Serial.print("rightClose = "); Serial.println(right);
+  return left || right;
+}
+
   // boolean closeToWall = distanceTrig(backTrigPin, backEchoPin, backTrigstreak, backShortDistance);
   // setBucketHeight("MID"); //Bucket in transport mode 
   
@@ -300,7 +337,7 @@ void moveToNet(){
   //   }
   //   closeToWall = distanceTrig(backTrigPin, backEchoPin, backTrigstreak, backShortDistance);
   // }
-}
+
 
 void receiveData(int byteCount) {
   if (byteCount < 10){  
