@@ -200,14 +200,14 @@ boolean backUpStraight(){
 
 void setBucketHeight(String height){
   if(height == "LOW"){
-    servoA.write(110);    // Move to 0 degrees
+    servoA.write(113);    // Move to 0 degrees
     servoB.write(10);     // Move to 0 degrees
     Serial.println("Moving bucket to 0 degrees");
     delay(1000); //alltså sänka denna?
   }
   else if(height == "MID"){
-    servoA.write(70);     // Move to 55 degrees
-    servoB.write(50);     // Move to 55 degrees
+    servoA.write(60);     // Move to 55 degrees
+    servoB.write(70);     // Move to 55 degrees
     Serial.println("Moving bucket to 55 degrees");
     delay(1000);
   }
