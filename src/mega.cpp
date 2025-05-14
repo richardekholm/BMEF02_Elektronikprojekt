@@ -308,6 +308,36 @@ void moveToNet(){
       turnRight(turnTime*1.5);
     }
   }
+
+  setBucketHeight("MID");
+
+  while (true) {
+    if (checkBackSensors()) {
+      robotState = DUMP;
+      return;
+    }
+
+    // Instead of large moves, break them up into short steps and check often
+    moveForward(200);  // short movement
+    if (checkBackSensors()) { robotState = DUMP; return; }
+
+    turnRight(100);    // shorter turn
+    if (checkBackSensors()) { robotState = DUMP; return; }
+
+    moveBackward(500); // short backward move
+    if (checkBackSensors()) { robotState = DUMP; return; }
+  }
+}
+
+// Helper function for checking back sensors
+bool checkBackSensors() {
+  bool left = distanceTrig(backLeftTrigPin, backLeftEchoPin, backTrigstreak, backShortDistance);
+  bool right = distanceTrig(backRightTrigPin, backRightEchoPin, backTrigstreak, backShortDistance);
+  Serial.print("leftClose = "); Serial.println(left);
+  Serial.print("rightClose = "); Serial.println(right);
+  return left || right;
+}
+
   // boolean closeToWall = distanceTrig(backTrigPin, backEchoPin, backTrigstreak, backShortDistance);
   
   // while(!closeToWall){//While not at net, randomly JUMP AROUND
@@ -327,7 +357,7 @@ void moveToNet(){
   //   }
   //   closeToWall = distanceTrig(backTrigPin, backEchoPin, backTrigstreak, backShortDistance);
   // }
-}
+
 
 void receiveData(int byteCount) {
   if (byteCount < 10){  
