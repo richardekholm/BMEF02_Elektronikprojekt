@@ -48,7 +48,7 @@ const int backTrigstreak = 5; // Number of triggers to detect wall
 const int backShortDistance = 7; // Number of triggers to detect ball in bucket
 const int backLongDistance = 10; // Number of triggers to detect ball in bucket
 
-const int repeatThreshold = 20; //20 repeat actions trigger bailout
+const int repeatThreshold = 15; //20 repeat actions trigger bailout
 int repeatCount = 0;
 
 
@@ -256,6 +256,8 @@ boolean distanceTrig(int trigPin, int echoPin, int nbrOfHits, float threshold){
   int hitStreak = 0;
   for(int i = 0; i < nbrOfHits; i++){
     float dist = getInstantDistance(trigPin, echoPin);
+    Serial.print("Distance in bucket: ");
+    Serial.println(dist);
     if(dist < threshold && dist > 1){//Anta att värden < 0,1 är felaktiga
       hitStreak ++;
     }
@@ -366,11 +368,11 @@ void receiveData(int byteCount) {
   if(w > 90){
     robotState = FORWARD; // lägga in en bailout här??
       
-  } else if (x <= w*1.1) {
+  } else if (x <= w) {
       robotState = LEFT;
-  } else if (x >= 240-(w*1.1)) {
+  } else if (x >= 240-w) {
       robotState = RIGHT;
-  } else if(x >w && x < 240-(w*1.1)){
+  } else if(x >w && x < 240-w){
       robotState = FORWARD;
   } else {
       robotState = SEARCH;
@@ -427,7 +429,7 @@ void loop() {
   
   checkTimeout(lastRobotState, robotState);
   lastRobotState = robotState;
-  bool ballInBucket = distanceTrig(bucketTrigPin, bucketEchoPin, 5, bucketDistance);
+  boolean ballInBucket = distanceTrig(bucketTrigPin, bucketEchoPin, 5, bucketDistance);
   if(ballInBucket && robotState != DUMP){ //Boll i skopa
     Serial.println("Ball detected in bucket.");
     setBucketHeight("MID");
