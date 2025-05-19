@@ -3,9 +3,9 @@
 #include <Servo.h>
 
 
-#define ARDUINO_ADDRESS 8  // Must match ESP32 sender
+#define ARDUINO_ADDRESS 8  // adress
 
-// Motor control pins (using Mega PWM pins)
+
 const int PWM_A   = 3,
           DIR_A   = 12,
           BRAKE_A = 9,
@@ -33,7 +33,6 @@ Servo servoB;
 
 
 
-// Timing and speed constants
 const int moveTime = 100;      
 const int turnTime = 100;       
 const int stepTime = 100;
@@ -48,7 +47,7 @@ const int backTrigstreak = 5; // Number of triggers to detect wall
 const int backShortDistance = 7; // Number of triggers to detect ball in bucket
 const int backLongDistance = 10; // Number of triggers to detect ball in bucket
 
-const int repeatThreshold = 15; //20 repeat actions trigger bailout
+const int repeatThreshold = 15; //15 i rad kör bailout
 int repeatCount = 0;
 
 
@@ -56,15 +55,15 @@ int hits = 0;
 unsigned long startTime = 0;
 unsigned long lastMoveTime = 0;
 const unsigned long moveDuration = 500; // time per action in ms
-bool virgin = true; //fräckis
+bool initialRun = true; 
 
 
-// Declare robot state and timing variables
+// robotstates
 enum RobotState {IDLE, FORWARD, LEFT, RIGHT, STOP, BACKWARD, SEARCH, TEST, TO_NET, DUMP};
 RobotState robotState;
 RobotState lastRobotState;
 
-//Function declarations
+
 void moveForward(int duration);
 void moveBackward(int duration);
 void turnRight(int duration);
@@ -84,7 +83,6 @@ bool checkBackSensors();
 void bailout();
 
 
-//Functions
 void lightOn() {
     digitalWrite(ledPin, HIGH);  
 }
@@ -140,8 +138,8 @@ void turnLeft(int duration) {
 void stop(int duration) {
   digitalWrite(BRAKE_A, HIGH);    
   digitalWrite(BRAKE_B, HIGH);
-  analogWrite(PWM_A, 0);  // Stop motor A
-  analogWrite(PWM_B, 0);  // Stop motor B
+  analogWrite(PWM_A, 0);  
+  analogWrite(PWM_B, 0);  
   delay(duration);
 }
 
@@ -154,7 +152,6 @@ float getInstantDistance(int trigPin, int echoPin) {
   delayMicroseconds(10);
   digitalWrite(trigPin, LOW);
 
-  // measure time
   unsigned long duration = pulseIn(echoPin, HIGH);
   // convert to cm
   return (duration * 0.0343f) / 2.0f;
@@ -164,7 +161,7 @@ void search(int duration) {
 turnRight(stepTime*1.2);
 }
 
-boolean backUpStraight(){
+boolean backUpStraight(){ // not in use
   boolean isLeftClose = distanceTrig(backLeftTrigPin, backLeftEchoPin, backTrigstreak, 30);
   boolean isRightClose = distanceTrig(backRightTrigPin, backRightEchoPin, backTrigstreak, 30);
   while(!isLeftClose && !isRightClose){//Långt ifrån väggen, back up
@@ -188,35 +185,34 @@ boolean backUpStraight(){
       isLeftClose = distanceTrig(backLeftTrigPin, backLeftEchoPin, backTrigstreak, 10);
       isRightClose = distanceTrig(backRightTrigPin, backRightEchoPin, backTrigstreak, 10);
     }
-  // }
   Serial.println("backing up straight");
   moveBackward(moveTime);
-  return true;//isLeftClose && isRightClose
+  return true;
 }
 }
 
 void setBucketHeight(String height){
-  if(height == "LOW"){
-    servoA.write(112);    // Move to 0 degrees
-    servoB.write(10);     // Move to 0 degrees
+  if(height == "LOW"){ //0 degrees
+    servoA.write(112);    
+    servoB.write(10);    
     Serial.println("Moving bucket to 0 degrees");
-    delay(1000); //alltså sänka denna?
+    delay(1000); 
   }
-  else if(height == "MID"){
-    servoA.write(65);     // Move to 55 degrees
-    servoB.write(65);     // Move to 55 degrees
+  else if(height == "MID"){ //55 degrees
+    servoA.write(65);     
+    servoB.write(65);     
     Serial.println("Moving bucket to 55 degrees");
     delay(1000);
   }
-  else if(height == "HI"){
-    servoA.write(0);      // Move to 120 degrees
-    servoB.write(120);    // Move to 120 degrees
+  else if(height == "HI"){ //120 degrees
+    servoA.write(0);      
+    servoB.write(120);    
     Serial.println("Moving bucket to 90 degrees");
     delay(1000);
   }
-  else if (height == "JUST ABOVE"){ // denna kanske är sketchy men tror ej de
-    servoA.write(107);     // Move to 90 degrees
-    servoB.write(13);     // Move to 90 degrees
+  else if (height == "JUST ABOVE"){ // används ej
+    servoA.write(107);     
+    servoB.write(13);     
     Serial.println("Moving bucket to 5 degrees");
     delay(1000);
   }
@@ -271,7 +267,7 @@ boolean distanceTrig(int trigPin, int echoPin, int nbrOfHits, float threshold){
 } 
 
 void moveForwardWithChecks(int totalTime) {
-  int stepTime = 100; // ms
+  int stepTime = 100; 
   int elapsed = 0;
   while (elapsed < totalTime) {
     moveForward(stepTime);
@@ -284,7 +280,7 @@ void moveForwardWithChecks(int totalTime) {
 }
 
 void moveBackwardWithChecks(int totalTime) {
-  int stepTime = 100; // ms
+  int stepTime = 100; 
   int elapsed = 0;
   while (elapsed < totalTime) {
     moveBackward(stepTime);
@@ -297,7 +293,7 @@ void moveBackwardWithChecks(int totalTime) {
 }
 
 void turnRightWithChecks(int totalTime) {
-  int stepTime = 100; // ms
+  int stepTime = 100; 
   int elapsed = 0;
   while (elapsed < totalTime) {
     turnRight(stepTime);
@@ -318,15 +314,14 @@ void moveToNet() {
       return;
     }
 
-    // Instead of large moves, break them up into short steps and check often
-    moveForward(700);  // short movement
+    moveForward(700);  
 
     if (checkBackSensors()) {return;}
 
-    turnRight(270);    // shorter turn
+    turnRight(270);    
     if (checkBackSensors()) {return;}
 
-    moveBackward(4000); // short backward move
+    moveBackward(4000); 
     if (checkBackSensors()) {return;}
   }
 }
@@ -344,11 +339,11 @@ void receiveData(int byteCount) {
   if (byteCount < 10){  
     return;
   }
-  if (robotState == TO_NET || robotState == DUMP) { // If already moving to net, ignore newmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm g data
+  if (robotState == TO_NET || robotState == DUMP) { 
     return;
   }
   
-  int target = Wire.read();//att vi måste kasta dessa 2 värden kommer 
+  int target = Wire.read();
   int score  = Wire.read();
   
   int x = (Wire.read() << 8) | Wire.read();
@@ -366,7 +361,7 @@ void receiveData(int byteCount) {
   Serial.print("Ball detected in arena with width = ");
   Serial.println(w);
   if(w > 90){
-    robotState = FORWARD; // lägga in en bailout här??
+    robotState = FORWARD;
       
   } else if (x <= w) {
       robotState = LEFT;
@@ -380,7 +375,6 @@ void receiveData(int byteCount) {
 }
 
 void checkTimeout(RobotState lastRobotState, RobotState robotState){
-  // Timeout detection logic
   if (robotState == lastRobotState) {
     repeatCount++;
     Serial.print("Same state detected the last ");
@@ -399,25 +393,25 @@ void checkTimeout(RobotState lastRobotState, RobotState robotState){
 
 
 void setup() {
-  if (virgin) {
+  if (initialRun) {
     delay(1000);
-    moveForward(stepTime);//stoppa in den
-    virgin = false;
+    moveForward(stepTime);
+    initialRun = false;
   }
 
   Serial.begin(9600);  
   Serial.println("STARTING SETUP");
-  pinMode(A5, INPUT);  // Set pin A5 as input
-  Wire.begin(ARDUINO_ADDRESS);  // Join I2C bus as slave
-  Wire.onReceive(receiveData);   // Set function to handle received data
+  pinMode(A5, INPUT);  // used for testing
+  Wire.begin(ARDUINO_ADDRESS);  //join i2c bus
+  Wire.onReceive(receiveData);  
   pinMode(backLeftTrigPin, OUTPUT);  
 	pinMode(backLeftEchoPin, INPUT);
   pinMode(backRightTrigPin, OUTPUT);  
 	pinMode(backRightEchoPin, INPUT);
 	pinMode(bucketEchoPin, INPUT);
   pinMode(bucketTrigPin, OUTPUT);  
-  servoA.attach(servoPinA);  // attach to digital pin 5
-  servoB.attach(servoPinB);  // attach to digital pin 6
+  servoA.attach(servoPinA); 
+  servoB.attach(servoPinB); 
   setBucketHeight("LOW");
   startTime = millis();
   robotState = SEARCH;
