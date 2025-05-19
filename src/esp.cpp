@@ -1,18 +1,18 @@
 #include <Wire.h>
-#include <Seeed_Arduino_SSCMA.h>  // Assuming you are using Seeed's AI library
+#include <Seeed_Arduino_SSCMA.h>  
 
-SSCMA AI;  // Initialize the AI object
+SSCMA AI;  // sensecraft framework
 
 #define ARDUINO_ADDRESS 8  // I2C slave address for Arduino Mega
 
 void setup() {
-  AI.begin();  // Initialize the AI module
-  Wire.begin(5, 6);  // ESP32 I2C: SDA = 5, SCL = 6 (adjust as needed)
+  AI.begin();  // initialize the AI module
+  Wire.begin(5, 6);  // ESP32 I2C: SDA = 5, SCL = 6 
   Serial.begin(9600);
 }
 
 void loop() {
-  if (!AI.invoke(1, false, false)) {  // Run AI model, no filter, no image
+  if (!AI.invoke(1, false, false)) {
     //Serial.print("invoke success");
 
 
