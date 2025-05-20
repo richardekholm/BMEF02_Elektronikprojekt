@@ -76,7 +76,7 @@ void moveToNet();
 void setBucketHeight(String height);
 bool isStuck();
 float getInstantDistance(int trigPin, int echoPin);
-void(* resetFunc) (void) = 0;
+void(* resetFunc) (void) = 0; //might not be needed
 bool backUpStraight();
 bool distanceTrig(int trigPin, int echoPin, int nbrOfHits, float threshold);
 bool checkBackSensors();
@@ -254,7 +254,7 @@ boolean distanceTrig(int trigPin, int echoPin, int nbrOfHits, float threshold){
     float dist = getInstantDistance(trigPin, echoPin);
     Serial.print("Distance in bucket: ");
     Serial.println(dist);
-    if(dist < threshold && dist > 1){//Anta att värden < 0,1 är felaktiga
+    if(dist < threshold && dist > 1){//Assume values < 0,1 are inaccurate
       hitStreak ++;
     }
   }
